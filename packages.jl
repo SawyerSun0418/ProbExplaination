@@ -1,0 +1,10 @@
+import Pkg; 
+Pkg.add("Lathe")
+Pkg.add("DataFrames")
+Pkg.add("Plots")
+Pkg.add("GLM")
+Pkg.add("StatsBase")
+Pkg.add("MLBase") 
+Pkg.add("ROCAnalysis") 
+Pkg.add("CSV")
+println("Successfully imported the packages!!")

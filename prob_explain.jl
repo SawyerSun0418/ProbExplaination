@@ -5,8 +5,8 @@ using MLDatasets
 
 
 function iris_cpu()
-    train_cpu = collect(transpose(reshape(Iris.traintensor(UInt8), 28*28, :)))
-    test_cpu = collect(transpose(reshape(Iris.testtensor(UInt8), 28*28, :)))
+    train_cpu = collect(transpose(reshape(MNIST.traintensor(UInt8), 28*28, :)))
+    test_cpu = collect(transpose(reshape(MNIST.testtensor(UInt8), 28*28, :)))
     train_cpu, test_cpu
 end
 
@@ -26,7 +26,7 @@ function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epoch
     trunc_train = cu(truncate(train; bits = 4))
 
     println("Generating HCLT structure with $latents latents... ");
-    @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 256, pseudocount = 0.1, input_type = Categorical);
+    @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 256, pseudocount = 0.01, input_type = Categorical);
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 

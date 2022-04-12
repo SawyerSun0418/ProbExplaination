@@ -10,7 +10,7 @@ using CategoricalArrays
 using FreqTables
 using Random
 using Lathe.preprocess: TrainTestSplit
-include("dataframe.jl")
+include("./dataframe.jl")
 
 df=return_df()
 train, test = TrainTestSplit(df, .75);

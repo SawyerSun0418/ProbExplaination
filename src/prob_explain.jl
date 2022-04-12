@@ -2,7 +2,8 @@ using CUDA
 using ProbabilisticCircuits
 using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihood, loglikelihoods, full_batch_em, mini_batch_em
 using MLDatasets
-include("dataframe.jl")
+
+include("./dataframe.jl")
 
 function iris_cpu()
     df=return_df()

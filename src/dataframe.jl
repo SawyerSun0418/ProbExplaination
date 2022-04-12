@@ -39,7 +39,7 @@ end
 
 
 function return_df()    
-    df = DataFrame(CSV.File("data.csv"))
+    df = DataFrame(CSV.File("data/data.csv"))
     select!(df, Not([:id]))
     for column in names(df)
         if column!="diagnosis"

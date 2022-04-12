@@ -3,17 +3,28 @@
 
 ## Installataion
 
-- Start Julia with project (similar to virtualenv in python)
-```bash
-julia --project=.
-```
+- Always start Julia with project (similar to virtualenv in python)
+    ```bash
+    julia --project=.
+    ```
 
-- Update dependencies
-```julia
-] up
-```
+- Inside Julia REPL. Update and install dependencies
+    ```julia
+    ] up
+    ```
 
- - Build or precompile `] build`, `] precompile`.
+- Add `ProbabilisticCircuits` from master branch. Inside Julia REPL 
+    ```julia
+    ] add ProbabilisticCircuits#master
+    ```
 
+- [Optional] Build or precompile 
 
-- Add `ProbabilisticCircuits` from master branch: `] add ProbabilisticCircuits#master`
+    ```julia
+    ] build
+    ```
+
+    ```julia
+    ] precompile
+    ```
+

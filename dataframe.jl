@@ -1,10 +1,10 @@
 using CSV
-using ROCAnalysis
+# using ROCAnalysis
 using MLBase
 using StatsBase
 using GLM
 using Plots
-using Lathe
+# using Lathe
 using DataFrames
 using CategoricalArrays
 using FreqTables

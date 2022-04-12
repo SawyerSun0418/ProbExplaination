@@ -28,3 +28,8 @@
     ] precompile
     ```
 
+## Run
+
+```julia
+julia --project -i src/prob_explain.jl
+```

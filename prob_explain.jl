@@ -17,18 +17,13 @@ function iris_gpu()
     cu.(iris_cpu())
 end
 
-function truncate(data::Matrix; bits)
-    data .÷ 2^bits
-end
-
 function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epochs3 = 20, 
              pseudocount = 0.1, latents = 32, param_inertia1 = 0.2, param_inertia2 = 0.9, param_inertia3 = 0.95)
     train, test = iris_cpu()
     train_gpu, test_gpu = iris_gpu()
     
-    trunc_train = cu(truncate(train; bits = 4))
     println("Generating HCLT structure with $latents latents... ");
-    @time pc = hclt(trunc_train[1:5000,:], latents; num_cats = 5, pseudocount = 0.01, input_type = Categorical);
+    @time pc = hclt(train, latents; num_cats = 5, pseudocount = 0.01, input_type = Categorical);
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 

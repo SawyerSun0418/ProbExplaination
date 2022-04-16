@@ -16,7 +16,7 @@ function iris_gpu()
     cu.(iris_cpu())
 end
 
-function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epochs3 = 20, 
+function run(; batch_size = 512, num_epochs1 = 10, num_epochs2 = 10, num_epochs3 = 20, 
              pseudocount = 0.1, latents = 32, param_inertia1 = 0.2, param_inertia2 = 0.9, param_inertia3 = 0.95)
     train, test = iris_cpu()
     train_gpu, test_gpu = iris_gpu()
@@ -47,11 +47,12 @@ function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epoch
     ll3 = loglikelihood(bpc, test_gpu; batch_size)
     println("test LL: $(ll3)")
 
-    print("update parameters")
+    print("AAAAAA update parameters")
     @time ProbabilisticCircuits.update_parameters(bpc)
-
-    ll1, ll2, ll3, batch_size, pseudocount, latents
+    write("trained_pc.jlc", pc)
+    pc
 end
 
 
-run()
+pc=run()
+#Base.write("trained_pc.psdd",pc)

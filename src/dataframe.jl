@@ -3,7 +3,7 @@ using CSV
 using MLBase
 using StatsBase
 using GLM
-using Plots
+#using Plots
 # using Lathe
 using DataFrames
 using CategoricalArrays

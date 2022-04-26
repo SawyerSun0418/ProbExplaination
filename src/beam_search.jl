@@ -1,52 +1,53 @@
 
-function beam_search(max_features)
+using ProbabilisticCircuits
+include("./LR.jl")
 
-    for i in 1:max_features
-        expanded_set = Set()
-        expanded_arr = [] #TODO: optimize to one alloc
-        for cand in top_k
-            expanded = expand_all(cand, inst)
-            for subset in expanded
-                if !(subset in expanded_set)
-                    push!(expanded_set, subset)
-                    append!(expanded_arr, [subset])
-                end
+function init_instance(instance::AbstractVector)
+
+    n=size(instance)[1]
+    m=Array{Int64}(missing, n, n)           # x1 _ ... _
+    for i in 1:n                            # _  x2 ... _
+        m[i][i]=instance[i]                 #_  _ ...  _
+    return m                                # ..........xn
+end
+
+function expand_instance(instance::AbstractVector,m::AbstractMatrix)
+    ret = []
+    num_features = size(instance)[1]
+    for i in 1:num_features
+        for j in 1:num_features                     # a nk*n array where each row is a possible candidate with missing feature
+            if ismissing(m[i][j])
+                newm = copy(m[i])
+                newm[j] = instance[j]
+                append!(ret, newm)         #check if need to change to [newm]
             end
-        end
-        num_expanded = size(expanded_arr)[1]
-        expanded_ep = nothing
-        expanded_mars = nothing
-        if encoder === nothing
-            expanded_ep = ep_func(expanded_arr, ep_params, true, logger)
-            expanded_mars = marginals(expanded_arr, ep_params[1])
-        else
-            expanded_ep = ep_func(encoder(expanded_arr,cats), ep_params, true, logger)
-            expanded_mars = marginals(encoder(expanded_arr,cats), ep_params[1])
-        end
-        expanded_cands = Array{Tuple{Candidate,Float64}}(undef,num_expanded)
-        for j in 1:num_expanded
-            expanded_cands[j] = (Candidate(expanded_arr[j], expanded_ep[j]),expanded_mars[j])
-        end
-        if (predicted_label == 1)
-            sort!(expanded_cands, by = x -> (x[1].prob, x[2]),rev=true)
-        else
-            sort!(expanded_cands, by = x -> (-x[1].prob,x[2]), rev=true)
-        end
-        top_k = []
-        for j in 1:k
-            if j > num_expanded
-                break
-            end
-            append!(top_k, [expanded_cands[j][1].features])
-        end
-        best_level_ep = expanded_cands[1][1].prob
-        best_level_mar = expanded_cands[1][2]
-        if (predicted_label == 1 && best_level_ep > best_ep) || (predicted_label == 0 && best_level_ep < best_ep)
-            best_ep = best_level_ep
-            best_log_mar = best_level_mar
-            best_cand = expanded_cands[1][1].features
-        elseif (best_level_ep == best_ep && best_level_mar > best_log_mar)
-            best_log_mar = best_level_mar
-            best_cand = expanded_cands[1][1].features
         end
     end
+    return ret
+end
+
+function beam_search(k::Int,instance::AbstractVector,depth::Int)
+    logis=train_LR()
+    num_features = size(instance)[1]
+    data=init_instance(instance)
+    sample_size=10
+    new_data=[]
+    for r in 1:depth
+        S=sample(pc,sample_size,data)  #TODO: add pc
+        num_cand=size(data)[1]
+        cand=[]
+        top_k=[]
+        for n in 1:num_cand
+            prediction_sum=0
+            for i in 1:sample_size
+                prediction = predict(logis, S[i,num_cand,:])
+                prediction_class = [if x < 0.5 0 else 1 end for x in prediction]
+                prediction_sum+=prediction_class
+            exp=prediction_sum/sample_size
+            cand[n]=exp
+            top_k=partialsortperm(cand, 1:k, rev=true)   #check return type
+            new_data=data[top_k]
+            data=expand_instance(instance,new_data)
+    println(new_data)
+end 
+

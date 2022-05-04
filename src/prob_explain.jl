@@ -49,7 +49,7 @@ function run(; batch_size = 512, num_epochs1 = 10, num_epochs2 = 10, num_epochs3
 
     print("AAAAAA update parameters")
     @time ProbabilisticCircuits.update_parameters(bpc)
-    write("trained_pc.jlc", pc)
+    write("trained_pc.jpc", pc)
     pc
 end
 

@@ -36,11 +36,11 @@ function train_LR()
     prediction_df = DataFrame(y_actual = test.diagnosis,y_predicted = prediction_class, prob_predicted = prediction);
     prediction_df.correctly_classified = prediction_df.y_actual .== prediction_df.y_predicted
     accuracy = mean(prediction_df.correctly_classified)
-    println(accuracy)
+    #println(accuracy)
     #println(prediction_df)
     #instance_df=Array(test[18,:])
     #println(instance_df)
     return logis
 end
 
-train_LR()
+#train_LR()

@@ -7,6 +7,8 @@ include("./dataframe.jl")
 
 function iris_cpu()
     df=return_df()
+    df=select!(df, Not(:"diagnosis"))
+    #print(first(df,1))
     train_cpu = Matrix(df)
     test_cpu = Matrix(df)
     train_cpu, test_cpu
@@ -22,7 +24,7 @@ function run(; batch_size = 512, num_epochs1 = 10, num_epochs2 = 10, num_epochs3
     train_gpu, test_gpu = iris_gpu()
     
     println("Generating HCLT structure with $latents latents... ");
-    @time pc = hclt(train, latents; num_cats = 5, pseudocount = 0.01, input_type = Categorical);
+    @time pc = hclt(train, latents; num_cats = 5, pseudocount = 0.01, input_type = Categorical);#
     init_parameters(pc; perturbation = 0.4);
     println("Number of free parameters: $(num_parameters(pc))")
 

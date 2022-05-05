@@ -31,10 +31,11 @@ function beam_search(pc::ProbCircuit, k::Int,instance::AbstractVector,depth::Int
     logis=train_LR()
     num_features = size(instance)[1]
     data=init_instance(instance)
-    sample_size=10
+    #display(data)
+    sample_size=3
     new_data=[]
     for r in 1:depth
-        S=ProbabilisticCircuits.sample(pc,sample_size,data)  #TODO: add pc
+        S=ProbabilisticCircuits.sample(pc,sample_size,data; batch_size = 1)  #TODO: add pc
         num_cand=size(data)[1]
         cand=[]
         top_k=[]

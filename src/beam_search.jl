@@ -1,5 +1,7 @@
 
 using ProbabilisticCircuits
+using CUDA
+using DataFrames
 include("./LR.jl")
 
 function init_instance(instance::AbstractVector)
@@ -13,48 +15,65 @@ function init_instance(instance::AbstractVector)
 end
 
 function expand_instance(instance::AbstractVector,m::AbstractMatrix)
-    ret = []
-    num_features = size(instance)[1]
-    for i in 1:num_features
-        for j in 1:num_features                     # a nk*n array where each row is a possible candidate with missing feature
+    
+    num_features = size(m)[2]
+    ret = Array{Union{Missing, Int64}}(undef, 0, num_features) 
+    num_k=size(m)[1]
+    for i in 1:num_k
+        for j in 1:num_features                     # a k*n array where each row is a possible candidate with missing feature
             if ismissing(m[i,j])
-                newm = copy(m[i])
+                newm = copy(m[i,:])
                 newm[j] = instance[j]
-                append!(ret, newm)         #check if need to change to [newm]
+                ret=[ret;newm']         
             end
         end
     end
+    ret=unique(ret,dims=1)
     return ret
 end
 
-function beam_search(pc::ProbCircuit, k::Int,instance::AbstractVector,depth::Int)
+function beam_search(pc::ProbCircuit, k::Int,instance::AbstractVector,depth::Int; )
+    CUDA.@time bpc = CuBitsProbCircuit(pc);
     logis=train_LR()
     num_features = size(instance)[1]
     data=init_instance(instance)
-    #display(data)
+    data_gpu = cu(data)
     sample_size=3
     new_data=[]
     for r in 1:depth
-        S=ProbabilisticCircuits.sample(pc,sample_size,data; batch_size = 1)  #TODO: add pc
+        S = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)  
+        S = Array{Int64}(S) # (sample_size, data_size, num_features)
         num_cand=size(data)[1]
         cand=[]
         top_k=[]
         for n in 1:num_cand
             prediction_sum=0
             for i in 1:sample_size
-                prediction = predict(logis, S[i,num_cand,:])
-                prediction_class = [if x < 0.5 0 else 1 end for x in prediction]
-                prediction_sum+=prediction_class
-            exp=prediction_sum/sample_size
-            cand[n]=exp
-            top_k=partialsortperm(cand, 1:k, rev=true)   #check return type
-            new_data=data[top_k]
-            data=expand_instance(instance,new_data)
+                S_df=DataFrame(radius_mean=Int[],texture_mean=Int[],perimeter_mean=Int[],area_mean=Int[],smoothness_mean=Int[],compactness_mean=Int[], 
+                concavity_mean=Int[],concave_points_mean=Int[],symmetry_mean=Int[],fractal_dimension_mean=Int[],radius_se=Int[],texture_se=Int[], 
+                perimeter_se=Int[],area_se=Int[],smoothness_se=Int[],compactness_se=Int[],concavity_se=Int[],concave_points_se=Int[],symmetry_se=Int[],fractal_dimension_se=Int[], 
+                radius_worst=Int[],texture_worst=Int[],perimeter_worst=Int[],area_worst=Int[],smoothness_worst=Int[],compactness_worst=Int[],concavity_worst=Int[],concave_points_worst=Int[],symmetry_worst=Int[],fractal_dimension_worst=Int[])
+                S_df=push!(S_df,S[i,num_cand,:])
+                prediction = predict(logis, S_df)
+                #prediction_class = [if x < 0.5 0 else 1 end for x in prediction]
+                prediction_sum+=prediction[1]
             end
+            exp=prediction_sum/sample_size
+            append!(cand,exp)
         end
+        top_k=partialsortperm(cand, 1:k, rev=true)   
+        #println(top_k)
+        new_data=data[top_k,:]
+        #display(new_data)
+        data=expand_instance(instance,new_data)
+        #println(size(data))
+        data_gpu=cu(data)
     end
-    println(new_data)
+    display(new_data)
 end 
 instance=[1, 4, 1, 1, 5, 3, 2, 1, 3, 4, 3, 5, 3, 2, 5, 4, 3, 2, 5, 3, 1, 4, 1, 1, 5, 2, 1, 1, 4, 3]
+instance .-= 1
 pc = Base.read("trained_pc.jpc", ProbCircuit)
 beam_search(pc,3,instance,5)
+
+# beam_...(pv, instance; b=3, k=5, samples=100)

@@ -33,3 +33,9 @@
 ```julia
 julia --project -i src/prob_explain.jl
 ```
+
+## Run Beam Search
+
+```bash
+julia --project -i src/beam_search.jl
+```

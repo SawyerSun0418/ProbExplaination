@@ -23,7 +23,7 @@ end
 
 function train_LR()
     df=return_df()
-    train, test = splitdf(df, .75);
+    train, test = splitdf(df, 0.6);
     fm = @formula(diagnosis ~ radius_mean + texture_mean + perimeter_mean + area_mean + smoothness_mean + compactness_mean + 
               concavity_mean + concave_points_mean + symmetry_mean + fractal_dimension_mean + radius_se + texture_se + 
               perimeter_se + area_se + smoothness_se + compactness_se + concavity_se + concave_points_se + symmetry_se+ fractal_dimension_se + 
@@ -38,9 +38,11 @@ function train_LR()
     accuracy = mean(prediction_df.correctly_classified)
     #println(accuracy)
     #println(prediction_df)
-    #instance_df=Array(test[18,:])
-    #println(instance_df)
-    return logis
+    instance=Array(test[test.diagnosis .== 1,:])
+    i=instance[1,:]
+    popfirst!(i)
+    println(i)
+    return logis,i
 end
 
 #train_LR()

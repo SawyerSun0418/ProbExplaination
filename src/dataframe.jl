@@ -2,7 +2,6 @@ using CSV
 # using ROCAnalysis
 using MLBase
 using StatsBase
-using GLM
 #using Plots
 # using Lathe
 using DataFrames

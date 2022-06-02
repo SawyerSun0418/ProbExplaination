@@ -44,7 +44,7 @@ function train_LR()
     #println(accuracy)
     #println(prediction_df)
     #instance=Array(test[test[:,1] .== 1,:])
-    #i=instance[1,:]
+    #i=instance[3,:]
     #popfirst!(i)
     #println(i)
     return model

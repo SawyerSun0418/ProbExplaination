@@ -2,6 +2,7 @@
 using ProbabilisticCircuits
 using CUDA
 using DataFrames
+using CSV
 include("./LR.jl")
 
 function init_instance(instance::AbstractVector)
@@ -32,7 +33,7 @@ function expand_instance(instance::AbstractVector,m::AbstractMatrix)
     return ret
 end
 
-function beam_search(pc::ProbCircuit, k::Int,depth::Int;instance=[1, 1, 1, 1, 4, 2, 2, 2, 3, 5, 2, 2, 2, 1, 5, 2, 2, 4, 4, 3, 1, 1, 1, 1, 3, 1, 1, 2, 2, 3],sample_size=100 )
+function beam_search(pc::ProbCircuit; k=3,depth=5,instance=[1, 1, 1, 1, 4, 2, 2, 2, 3, 5, 2, 2, 2, 1, 5, 2, 2, 4, 4, 3, 1, 1, 1, 1, 3, 1, 1, 2, 2, 3],sample_size=100 )
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     logis=train_LR()
     #instance=instance .-= 1
@@ -60,8 +61,8 @@ function beam_search(pc::ProbCircuit, k::Int,depth::Int;instance=[1, 1, 1, 1, 4,
         if r==depth
             first=top_k[1]
             result=data[first,:]
-            display(result)
-            return   
+            #display(result)
+            return result
         end
         #println(top_k)
 
@@ -73,11 +74,59 @@ function beam_search(pc::ProbCircuit, k::Int,depth::Int;instance=[1, 1, 1, 1, 4,
         data_gpu=cu(data)
     end
 
-    display(new_data)
 end 
 #instance=[1, 4, 1, 1, 5, 3, 2, 1, 3, 4, 3, 5, 3, 2, 5, 4, 3, 2, 5, 3, 1, 4, 1, 1, 5, 2, 1, 1, 4, 3]
 #instance .-= 1
 pc = Base.read("trained_pc.jpc", ProbCircuit)
-beam_search(pc,5,7)
+result=Vector{Union{Missing, Int64}}[]
 
+for i in 1:100
+    push!(result,beam_search(pc))
+end
+result=reduce(vcat,result')
+df=DataFrame(result,:auto)
+display(df)
+CSV.write("1-100.csv", df)
+
+ins=[2, 3, 2, 2, 1, 1, 1, 1, 4, 3, 2, 1, 2, 2, 4, 1, 1, 2, 3, 2, 2, 2, 2, 2, 2, 1, 2, 2, 3, 2]
+result=Vector{Union{Missing, Int64}}[]
+
+for i in 1:100
+    push!(result,beam_search(pc,instance=ins))
+end
+result=reduce(vcat,result')
+df=DataFrame(result,:auto)
+display(df)
+CSV.write("2-100.csv", df)
+
+ins=[3, 3, 3, 3, 2, 1, 2, 3, 1, 2, 1, 5, 1, 1, 1, 1, 2, 3, 5, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1]
+result=Vector{Union{Missing, Int64}}[]
+
+for i in 1:100
+    push!(result,beam_search(pc,instance=ins))
+end
+result=reduce(vcat,result')
+df=DataFrame(result,:auto)
+display(df)
+CSV.write("3-100.csv", df)
+
+result=Vector{Union{Missing, Int64}}[]
+
+for i in 1:100
+    push!(result,beam_search(pc,sample_size=300))
+end
+result=reduce(vcat,result')
+df=DataFrame(result,:auto)
+display(df)
+CSV.write("1-300.csv", df)
+
+result=Vector{Union{Missing, Int64}}[]
+
+for i in 1:100
+    push!(result,beam_search(pc,sample_size=500))
+end
+result=reduce(vcat,result')
+df=DataFrame(result,:auto)
+display(df)
+CSV.write("1-500.csv", df)
 # beam_...(pv, instance; b=3, k=5, samples=100)

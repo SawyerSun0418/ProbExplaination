@@ -23,11 +23,11 @@ function splitdf(df, pct)
 end
 
 function train_LR()
-    df=return_df()
+    df=return_MNIST_df()
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
-    model = LogisticRegression(fit_intercept=true,max_iter=200)
+    model = LogisticRegression(fit_intercept=true,max_iter=500)
     y_train=train[:,1]
     X_train=train[:,2:end]
     y_test=test[:,1]
@@ -42,9 +42,9 @@ function train_LR()
     #temp=sum(ScikitLearn.predict_proba(model, X_test)[:,2])
     #println(temp)
     #println(accuracy)
-    #println(prediction_df)
+    #println(first(prediction_df,2))
     #instance=Array(test[test[:,1] .== 1,:])
-    #i=instance[3,:]
+    #i=instance[1,:]
     #popfirst!(i)
     #println(i)
     return model

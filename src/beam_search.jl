@@ -56,7 +56,7 @@ function beam_search(pc::ProbCircuit; k=3,depth=30,instance=[0, 0, 0, 0, 0, 0, 0
             append!(cand,exp)
         end
 
-        top_k=partialsortperm(cand, 1:k)#, rev=true)    ####This now returns the indexes of few smallest values in cand
+        top_k=partialsortperm(cand, 1:k)#, rev=true)    ####This now returns the indexes of few smallest values in cand, with rev=true it returns largest values
         display(cand[top_k])
         if r==depth
             first=top_k[1]

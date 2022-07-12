@@ -39,3 +39,7 @@ julia --project -i src/prob_explain.jl
 ```bash
 julia --project -i src/beam_search.jl
 ```
+
+## plot explanation
+
+run plot/plot.ipynb with jupyter notebook

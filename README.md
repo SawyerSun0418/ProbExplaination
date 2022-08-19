@@ -43,3 +43,9 @@ julia --project -i src/beam_search.jl
 ## plot explanation
 
 run plot/plot.ipynb with jupyter notebook
+
+## experiment
+experiment_exp.csv logs the expected predictions of the explanations
+experiment_original_ins logs the original instances
+experiment_plot logs the explanations
+to plot the explanations, run plot/plot.ipynb with jupyter notebook, then run first cell

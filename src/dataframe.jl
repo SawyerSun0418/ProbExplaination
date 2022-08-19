@@ -52,3 +52,8 @@ function return_MNIST_df()
     df = DataFrame(CSV.File("data/mnist_3_5_train.csv"))
     return df
 end
+
+function return_MNIST_df_t()    
+    df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
+    return df
+end

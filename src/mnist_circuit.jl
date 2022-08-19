@@ -1,12 +1,14 @@
 using CUDA
 using ProbabilisticCircuits
-using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihoods, full_batch_em, mini_batch_em
+using ProbabilisticCircuits: BitsProbCircuit, CuBitsProbCircuit, loglikelihood, loglikelihoods, full_batch_em, mini_batch_em
 using MLDatasets
-
+include("./dataframe.jl")
 
 function mnist_cpu()
-    train_cpu = collect(transpose(reshape(MNIST.traintensor(UInt8), 28*28, :)))
-    test_cpu = collect(transpose(reshape(MNIST.testtensor(UInt8), 28*28, :)))
+    train_cpu = return_MNIST_df()
+    test_cpu = return_MNIST_df_t()
+    train_cpu=Matrix(train_cpu)[:,2:end]
+    test_cpu=Matrix(test_cpu)[:,2:end]
     train_cpu, test_cpu
 end
 
@@ -53,7 +55,7 @@ function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epoch
 
     print("update parameters")
     @time ProbabilisticCircuits.update_parameters(bpc)
-    write("mnist_pc.jpc", pc)
+    write("mnist35.jpc", pc)
     ll1, ll2, ll3, batch_size, pseudocount, latents
 end
 

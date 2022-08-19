@@ -11,6 +11,10 @@ using Random
 #using Lathe.preprocess: TrainTestSplit
 #using MLJ
 using ScikitLearn
+using Flux
+using MLUtils
+using BSON: @save
+using BSON: @load
 @sk_import linear_model: LogisticRegression
 include("./dataframe.jl")
 
@@ -21,6 +25,7 @@ function splitdf(df, pct)
     sel = ids .<= nrow(df) .* pct
     return view(df, sel, :), view(df, .!sel, :)
 end
+
 
 function train_LR()
     df=return_MNIST_df()
@@ -50,4 +55,73 @@ function train_LR()
     return model
 end
 
-#train_LR()
+function data_pre()
+    df=return_MNIST_df()
+    train, test = splitdf(df, 0.9);
+    train=Matrix(train)
+    test=Matrix(test)
+    y_train=train[:,1]'
+    X_train=train[:,2:end]'
+    #train_size=size(y_train)[1]
+    #train_data=Array{Tuple{AbstractArray{Int},AbstractArray{Int}}}(undef, train_size)
+    #for i in 1:train_size
+    #    train_data[i]=(X_train[i,:],[y_train[i]])
+    #end
+    y_test=test[:,1]
+    X_test=test[:,2:end]
+    train_data=[(X_train,y_train)]
+    test_data=(X_test,y_test)
+    return train_data, test_data
+    
+end
+
+
+
+function train_LR_flux()
+    train_data, test_data=data_pre()
+    model = Chain(
+        #Dense(784=>128, relu),
+        #Dense(128=>64, relu),
+        Dense(784=>1, sigmoid)
+        )
+    loss(x, y) = Flux.binarycrossentropy(model(x), y)
+    opt = Flux.Optimise.ADAM()
+    Flux.@epochs 250 Flux.train!(loss, Flux.params(model), train_data, opt)
+    
+    return model, test_data
+end
+
+function accuracy(x,y,model)
+    prediction_class = [if i< 0.5 0 else 1 end for i in model(x')];
+    count=0
+    s=size(y)[1]
+    for i in 1:s
+        if prediction_class[i]==y[i]
+            count+=1
+        end
+    end
+    a = count/s
+    return a
+end
+
+function test(model, test)
+    X_test, y_test = test
+    accuracy_score = accuracy(X_test, y_test, model)
+    println("\nAccuracy: $accuracy_score")
+    return accuracy_score
+end
+
+function save_model()
+    model, test_data=train_LR_flux()
+    a=test(model,test_data)
+    if a > 0.9
+        @save "src/model/flux_LR.bson" model
+    else
+        println("not accurate")
+    end
+end
+
+function load_model(model_add)
+    @load model_add model
+    return model
+end

@@ -181,7 +181,7 @@ pc = Base.read("mnist35.jpc", ProbCircuit)
 # beam_search(pc)
 
 
-rand_ins=rand_instance(75)
+rand_ins=rand_instance(100)
 ins_output=reduce(vcat,rand_ins')
 ins_df=DataFrame(ins_output,:auto)
 CSV.write("experiment_original_ins.csv",ins_df)     #temp: remember to delete first column

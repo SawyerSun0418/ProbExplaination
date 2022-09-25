@@ -28,7 +28,7 @@ end
 
 
 function train_LR()
-    df=return_MNIST_df()
+    df=return_df()
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
@@ -46,7 +46,7 @@ function train_LR()
     accuracy = mean(prediction_df.correctly_classified)
     #temp=sum(ScikitLearn.predict_proba(model, X_test)[:,2])
     #println(temp)
-    #println(accuracy)
+    println(accuracy)
     #println(first(prediction_df,2))
     #instance=Array(test[test[:,1] .== 0,:])
     #i=instance[2,:]

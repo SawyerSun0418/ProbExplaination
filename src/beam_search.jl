@@ -28,8 +28,17 @@ function init_instance(instance::AbstractVector)
     return m                                                # ..........xn
 end
 
+function rand_instance_cancer(num)
+    df=return_df()
+    df=Matrix(df)
+    df=[df[i,:] for i in 1:size(df,1)]
+    result=sample(df, num; replace=false)
+    return result
+end
+
+
 function rand_instance(num)
-    df=return_MNIST_df()
+    df=return_MNIST_df_t()
     df=Matrix(df)
     df=[df[i,:] for i in 1:size(df,1)]
     result=sample(df, num; replace=false)
@@ -180,27 +189,70 @@ pc = Base.read("mnist35.jpc", ProbCircuit)
 #CSV.write("min-5.csv", df)
 # beam_search(pc)
 
-
-rand_ins=rand_instance(100)
-ins_output=reduce(vcat,rand_ins')
-ins_df=DataFrame(ins_output,:auto)
-CSV.write("experiment_original_ins.csv",ins_df)     #temp: remember to delete first column
-result=Vector{Union{Missing, Int64}}[]
-Exp=Vector{Float64}[]
-for ins in rand_ins
-    @time begin
-        is_Max=true
-        if ins[1]==0
-            is_Max=false
+function run_MNIST()
+    pc = Base.read("mnist35.jpc", ProbCircuit)
+    rand_ins=rand_instance(100)
+    ins_output=reduce(vcat,rand_ins')
+    ins_df=DataFrame(ins_output,:auto)
+    CSV.write("experiment_original_ins.csv",ins_df)     #temp: remember to delete first column
+    result=Vector{Union{Missing, Int64}}[]
+    Exp=Vector{Float64}[]
+    label=Vector{Int}[]
+    for ins in rand_ins
+        @time begin
+            is_Max=true
+            if ins[1]==0
+                is_Max=false
+            end
+            graph,exp=beam_search(pc,instance=ins[2:end],sample_size=300,is_max=is_Max)
+            push!(result,graph)
+            push!(Exp,[exp])
+            push!(label,[ins[1]])
         end
-        graph,exp=beam_search(pc,instance=ins[2:end],sample_size=300,is_max=is_Max)
-        push!(result,graph)
-        push!(Exp,[exp])
     end
+    result=reduce(vcat,result')
+    Exp=reduce(vcat,Exp')
+    Label=reduce(vcat,label)
+    df=DataFrame(result,:auto)
+    exp_df=DataFrame(Exp,:auto)
+    label_df=DataFrame(Label,:auto)
+    CSV.write("experiment_plot.csv",df)
+    CSV.write("experiment_exp.csv",exp_df)
+    CSV.write("experiment_label.csv",label_df)
 end
-result=reduce(vcat,result')
-Exp=reduce(vcat,Exp')
-df=DataFrame(result,:auto)
-exp_df=DataFrame(Exp,:auto)
-CSV.write("experiment_plot.csv",df)
-CSV.write("experiment_exp.csv",exp_df)
+
+
+
+function run_cancer()
+    pc = Base.read("trained_pc.jpc", ProbCircuit)
+    rand_ins=rand_instance_cancer(300)
+    ins_output=reduce(vcat,rand_ins')
+    ins_df=DataFrame(ins_output,:auto)
+    CSV.write("experiment_original_ins_c.csv",ins_df)     #temp: remember to delete first column
+    result=Vector{Union{Missing, Int64}}[]
+    Exp=Vector{Float64}[]
+    label=Vector{Int64}[]
+    for ins in rand_ins
+        @time begin
+            is_Max=true
+            l=ins[1]
+            if l==0
+                is_Max=false
+            end
+            graph,exp=beam_search(pc,instance=ins[2:end],sample_size=300,is_max=is_Max,is_Flux=false,depth=10)
+            push!(result,graph)
+            push!(Exp,[exp])
+            push!(label,[l])
+        end
+    end
+    result=reduce(vcat,result')
+    Exp=reduce(vcat,Exp')
+    Label=reduce(vcat,label')
+    df=DataFrame(result,:auto)
+    exp_df=DataFrame(Exp,:auto)
+    label_df=DataFrame(Label,:auto)
+    CSV.write("experiment_plot_c.csv",df)
+    CSV.write("experiment_exp_c.csv",exp_df)
+    CSV.write("experiment_label_c.csv",label_df)
+end
+

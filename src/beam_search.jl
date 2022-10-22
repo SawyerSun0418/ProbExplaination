@@ -4,18 +4,7 @@ using CUDA
 using DataFrames
 using CSV
 using StatsBase: sample
-include("./LR.jl")
-
-
-#function kfoldperm(N,k)
-#    n,r = divrem(N,k)
-#    b = collect(1:n:N+1)
-#    for i in 1:length(b)
-#        b[i] += i > r ? r : i-1  
-#    end
-#    p = randperm(N)
-#    return [p[r] for r in [b[i]:b[i+1]-1 for i=1:k]]
-#end
+include("./models.jl")
 
 
 function init_instance(instance::AbstractVector)
@@ -27,6 +16,19 @@ function init_instance(instance::AbstractVector)
     end
     return m                                                # ..........xn
 end
+
+function init_instance_g(instance::AbstractVector,index::AbstractVector,n::Int64)
+    s=size(instance, 1)
+    m=Array{Union{Missing, Int64}}(missing, n, s)           
+    for i in 1:n
+        in=index[i]                                            
+        m[i,in]=instance[in]                                 
+    end
+    #print(size(m))
+    return m                                                
+end
+
+
 
 function rand_instance_cancer(num)
     df=return_df()
@@ -45,7 +47,7 @@ function rand_instance(num)
     return result
 end
 
-function expand_instance(instance::AbstractVector,m::AbstractMatrix; batch_size=64)
+function expand_instance(instance::AbstractVector,m::AbstractMatrix)
     
     num_features = size(m)[2]
     ret = Array{Union{Missing, Int64}}(undef, 0, num_features) 
@@ -60,17 +62,34 @@ function expand_instance(instance::AbstractVector,m::AbstractMatrix; batch_size=
         end
     end
     ret=unique(ret,dims=1)
-    #n=size(ret)[1]
-    #parts=kfoldperm(n,batch_size)
-    #result=[ret[p] for p in parts]
     return ret
 end
 
-#5 now
-function beam_search(pc::ProbCircuit;is_max=true,is_Flux=true,th=1, k=3,depth=30,instance=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],sample_size=100 )
+function expand_instance_g(instance::AbstractVector,m::AbstractMatrix,index::AbstractVector)
+    
+    num_features = size(m)[2]
+    ret = Array{Union{Missing, Int64}}(undef, 0, num_features) 
+    num_k=size(m)[1]
+    for i in 1:num_k
+        for j in index                    
+            if ismissing(m[i,j])
+                newm = copy(m[i,:])
+                newm[j] = instance[j]
+                ret=[ret;newm']         
+            end
+        end
+    end
+    ret=unique(ret,dims=1)
+    #print(size(ret))
+    return ret
+end
+
+
+
+function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     if is_Flux
-        logis=load_model("src/model/flux_LR.bson")
+        logis=load_model("src/model/flux_NN_MNIST.bson")
         ins_prob = logis(instance)
     else
         logis=train_LR()
@@ -78,7 +97,11 @@ function beam_search(pc::ProbCircuit;is_max=true,is_Flux=true,th=1, k=3,depth=30
     end
     
     println("p(c|x) is ",ins_prob)
-    data=init_instance(instance)
+    if g_acce!=[] 
+        data=init_instance_g(instance,g_acce,n)
+    else
+        data=init_instance(instance)
+    end
     data_gpu = cu(data)
     
     new_data=[]
@@ -88,50 +111,54 @@ function beam_search(pc::ProbCircuit;is_max=true,is_Flux=true,th=1, k=3,depth=30
         num_cand=size(data_gpu)[1]  #number of candidates in one step of beam search
         cand = Array{Float64}(undef, num_cand)
         top_k=[]
-        for n in 1:num_cand
-            prediction_sum=0
-            if is_Flux
-                prediction= logis(S[:,n,:]')
-            else
-                prediction = ScikitLearn.predict_proba(logis, S[:,n,:])[:,2]   ###This returns probability of prediction is 1 (aka 3)
+        print("predict time")
+        @time begin
+            for n in 1:num_cand
+                prediction_sum=0
+                if is_Flux
+                    prediction= logis(S[:,n,:]')
+                else
+                    prediction = ScikitLearn.predict_proba(logis, S[:,n,:])[:,2]   
+                end
+                prediction_sum=sum(prediction)
+                exp=prediction_sum/sample_size
+                cand[n]=exp
             end
-            prediction_sum=sum(prediction)
-            exp=prediction_sum/sample_size
-            cand[n]=exp
         end
         #deleteat!(cand, cand .== 1);
         if is_max
             top_k=partialsortperm(cand, 1:k, rev=true)  
-            if mean(cand[top_k])>=th
-                println(cand)
-                first=top_k[1]
-                result=data[first,:]
-                exps=cand[first]
-                println(exps)
-                return result,exps,r
-            end  
+            #if  th!=1 && mean(cand[top_k])>float(th)
+            #    #println(cand)
+            #    first=top_k[1]
+            #    result=data[first,:]
+            #    exps=cand[first]                             
+            #    #println(exps)
+            #    return result,exps,r
+            #end  
         else
             top_k=partialsortperm(cand, 1:k)
-            th=1-th
-            if mean(cand[top_k])<=th
-                println(cand)
-                first=top_k[1]
-                result=data[first,:]
-                exps=cand[first]
-                println(exps)
-                return result,exps,r
-            end 
+            #th=1-th
+            #print(mean(cand[top_k]))
+            #if th!=0 && mean(cand[top_k])<float(th)
+                #println(cand)
+            #    first=top_k[1]
+            #    result=data[first,:]
+            #    exps=cand[first]                      #issue: terminate too early
+                #println(exps)
+            #    return result,exps,r
+            #end 
         end
             #display(cand[top_k])
         
         
 
         if r==depth
-            println(cand)
+            #println(cand)
             first=top_k[1]
             result=data[first,:]
             exps=cand[first]
-            println(exps)
+            #println(exps)
             return result,exps,r
         end
 
@@ -148,8 +175,11 @@ function beam_search(pc::ProbCircuit;is_max=true,is_Flux=true,th=1, k=3,depth=30
         #    display(exps)
         #end
         #return
-        
-        data=expand_instance(instance,new_data)
+        if g_acce!=[] 
+            data=expand_instance_g(instance,new_data,g_acce)
+        else
+            data=expand_instance(instance,new_data)
+        end
         data_gpu=cu(data)
     end
 
@@ -157,16 +187,19 @@ end
 
 
 
-function run_MNIST()
+function run_MNIST(w_g::Bool)
     pc = Base.read("mnist35.jpc", ProbCircuit)
     rand_ins=rand_instance(100)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
-    CSV.write("experiment_original_ins.csv",ins_df)     #temp: remember to delete first column
+    CSV.write("experiment_original_ins.csv",ins_df[:, Not(:x1)])     
     result=Vector{Union{Missing, Int64}}[]
     Exp=Vector{Float64}[]
     label=Vector{Int}[]
     size=Vector{Int}[]
+    index_g=[]
+    logis=load_model("src/model/flux_NN_MNIST.bson")
+    n_g=100
     for ins in rand_ins
         @time begin
             is_Max=true
@@ -174,12 +207,24 @@ function run_MNIST()
             if ins[1]==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,instance=ins[2:end],sample_size=300,is_max=is_Max)
+            println("time of gradient calculation")
+            @time begin
+                if w_g
+                    x=ins[2:end]
+                    gs=gradient(Flux.params(x,[l])) do 
+                        Flux.binarycrossentropy(logis(x), [l])
+                    end
+                    index_g=partialsortperm(abs.(gs[x]), 1:n_g, rev=true)
+                end
+            end
+            println("end")
+            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,g_acce=index_g,n=n_g)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])
             push!(size,[d])
         end
+        println("total time")
     end
     result=reduce(vcat,result')
     Exp=reduce(vcat,Exp')
@@ -202,7 +247,7 @@ function run_cancer()
     rand_ins=rand_instance_cancer(300)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
-    CSV.write("experiment_original_ins_c.csv",ins_df[:, Not(:x1)])     #temp: remember to delete first column
+    CSV.write("experiment_original_ins_c.csv",ins_df[:, Not(:x1)])     
     result=Vector{Union{Missing, Int64}}[]
     Exp=Vector{Float64}[]
     label=Vector{Int64}[]
@@ -214,7 +259,7 @@ function run_cancer()
             if l==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,instance=ins[2:end],sample_size=300,is_max=is_Max,is_Flux=false,th=0.985)
+            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,th=0.7)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])

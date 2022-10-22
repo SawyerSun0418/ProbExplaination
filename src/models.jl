@@ -57,7 +57,7 @@ end
 
 function data_pre()
     df=return_MNIST_df()
-    train, test = splitdf(df, 0.9);
+    train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
     y_train=train[:,1]'
@@ -75,7 +75,36 @@ function data_pre()
     
 end
 
+function train_NN_flux()
+    train_data, test_data=data_pre()
+    model = Chain(
+        Dense(784=>128, relu),
+        Dense(128=>10, relu),
+        Dense(10=>1, sigmoid)
+        )
+    loss(x, y) = Flux.binarycrossentropy(model(x), y)
+    opt = Flux.Optimise.ADAM()
+    temp=0
+    history=0
+    h_a=0
+    for epochs in 1:500
+        Flux.train!(loss, Flux.params(model), train_data, opt)
+        a=test(model,test_data)
+        if a>0.9
+            if a > h_a
+                history=model
+                h_a=a
+                temp=0
+            else temp+=1 end
 
+            if temp>=10
+                return history, test_data
+            end
+        end
+    end
+    println("failed")
+    return model, test_data
+end
 
 function train_LR_flux()
     train_data, test_data=data_pre()
@@ -112,10 +141,10 @@ function test(model, test)
 end
 
 function save_model()
-    model, test_data=train_LR_flux()
+    model, test_data=train_NN_flux()
     a=test(model,test_data)
     if a > 0.9
-        @save "src/model/flux_LR.bson" model
+        @save "src/model/flux_NN_MNIST.bson" model
     else
         println("not accurate")
     end

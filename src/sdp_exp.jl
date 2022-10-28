@@ -4,6 +4,7 @@ using DataFrames
 using CSV
 using StatsBase: sample
 using ScikitLearn
+using Statistics
 include("./models.jl")
 
 function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::String, label::String ;sample_size=1000,is_Flux=true)
@@ -13,7 +14,7 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
     original_m=Matrix(DataFrame(CSV.File(original)))
     explanation_m=Matrix(DataFrame(CSV.File(explanation)))
     if is_Flux
-        logis=load_model("src/model/flux_NN_MNIST.bson")
+        logis=load_model("src/model/flux_NN_cancer.bson")
     else 
         logis=train_LR()
     end
@@ -55,10 +56,15 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
             size_5+=1
         end
     end
+    ave=mean(sdp)
+    push!(sdp,ave)
+    s=std(sdp)
+    push!(sdp,s)
     ave_3=exp_3/size_3
     ave_5=exp_5/size_5
     sdp=reduce(vcat,sdp')
     df=DataFrame(sdp,:auto)
+
     CSV.write("experiment_sdp.csv",df)
     println("ave exp for 3:",ave_3)
     println("ave exp for 5:",ave_5)
@@ -77,6 +83,14 @@ function get_exp(exp::String,label::String)
             push!(exp_5,[exp_m[i,1]])
         end
     end
+    ave_3=mean(exp_3)
+    push!(exp_3,ave_3)
+    std_3=std(exp_3)
+    push!(exp_3,std_3)
+    ave_5=mean(exp_5)
+    push!(exp_5,ave_5)
+    std_5=std(exp_5)
+    push!(exp_5,std_5)
     exp_3=reduce(vcat,exp_3')
     df_3=DataFrame(exp_3,:auto)
     CSV.write("experiment_exp_3.csv",df_3)
@@ -85,9 +99,9 @@ function get_exp(exp::String,label::String)
     CSV.write("experiment_exp_5.csv",df_5)
 end
 
-pc = Base.read("mnist35.jpc", ProbCircuit)
-sdp_exp(pc,"experiment_exp_100.csv","experiment_original_ins_100.csv","experiment_plot_100.csv","experiment_label_100.csv")
-get_exp("experiment_exp_100.csv","experiment_label_100.csv")
+pc = Base.read("trained_pc.jpc", ProbCircuit)
+sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
+get_exp("experiment_exp_c.csv","experiment_label_c.csv")
 #pc = Base.read("trained_pc.jpc", ProbCircuit)
 #sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
 #get_exp("experiment_exp_c.csv","experiment_label_c.csv")

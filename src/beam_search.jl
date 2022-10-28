@@ -89,7 +89,7 @@ end
 function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     if is_Flux
-        logis=load_model("src/model/flux_NN_MNIST.bson")
+        logis=load_model("src/model/flux_NN_cancer.bson")
         ins_prob = logis(instance)
     else
         logis=train_LR()
@@ -259,7 +259,7 @@ function run_cancer()
             if l==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,th=0.7)
+            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,depth=11)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])

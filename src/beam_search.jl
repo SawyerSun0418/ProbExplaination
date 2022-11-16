@@ -4,6 +4,7 @@ using CUDA
 using DataFrames
 using CSV
 using StatsBase: sample
+using XGBoost
 include("./models.jl")
 
 
@@ -28,7 +29,12 @@ function init_instance_g(instance::AbstractVector,index::AbstractVector,n::Int64
     return m                                                
 end
 
-
+function rand_instance_adult(num)
+    df=Matrix(DataFrame(CSV.File("data/adult/x_test_oh_util.csv")))
+    df=[df[i,:] for i in 1:size(df,1)]
+    result=sample(df, num; replace=false)
+    return result
+end
 
 function rand_instance_cancer(num)
     df=return_df()
@@ -86,11 +92,19 @@ end
 
 
 
-function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
+function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=false, th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     if is_Flux
         logis=load_model("src/model/flux_NN_cancer.bson")
         ins_prob = logis(instance)
+
+    elseif is_xgb
+        x_train = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))     ###temperory solution for not able to load
+        y_train = vec(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
+        dtrain = DMatrix(x_train, label=y_train)
+        logis = xgboost(dtrain, num_round = 6, max_depth = 6, eta = 0.5, eval_metric = "error", objective = "binary:logistic")
+        temp = reshape(instance, 1, :)
+        ins_prob = XGBoost.predict(logis,temp)
     else
         logis=train_LR()
         ins_prob = ScikitLearn.predict_proba(logis, [instance])[:,2]
@@ -117,6 +131,9 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,th=1, k=
                 prediction_sum=0
                 if is_Flux
                     prediction= logis(S[:,n,:]')
+
+                elseif is_xgb
+                    prediction = XGBoost.predict(logis,S[:,n,:])
                 else
                     prediction = ScikitLearn.predict_proba(logis, S[:,n,:])[:,2]   
                 end
@@ -280,3 +297,42 @@ function run_cancer()
     CSV.write("experiment_size_c.csv",size_df)
 end
 
+
+
+function run_adult()
+    pc = Base.read("adult.jpc", ProbCircuit)
+    rand_ins=rand_instance_adult(300)
+    ins_output=reduce(vcat,rand_ins')
+    ins_df=DataFrame(ins_output,:auto)
+    CSV.write("experiment_original_ins_c.csv",ins_df[:, Not(:x1)])     
+    result=Vector{Union{Missing, Int64}}[]
+    Exp=Vector{Float64}[]
+    label=Vector{Int64}[]
+    size=Vector{Int}[]
+    for ins in rand_ins
+        @time begin
+            is_Max=true
+            l=ins[1]
+            if l==0
+                is_Max=false
+            end
+            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,is_Flux=false,is_xgb=true, depth=3)
+            push!(result,graph)
+            push!(Exp,[exp])
+            push!(label,[l])
+            push!(size,[d])
+        end
+    end
+    result=reduce(vcat,result')
+    Exp=reduce(vcat,Exp')
+    Label=reduce(vcat,label')
+    Size=reduce(vcat,size')
+    df=DataFrame(result,:auto)
+    exp_df=DataFrame(Exp,:auto)
+    label_df=DataFrame(Label,:auto)
+    size_df=DataFrame(Size,:auto)
+    CSV.write("experiment_plot_c.csv",df)
+    CSV.write("experiment_exp_c.csv",exp_df)
+    CSV.write("experiment_label_c.csv",label_df)
+    CSV.write("experiment_size_c.csv",size_df)
+end

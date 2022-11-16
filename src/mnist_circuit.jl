@@ -5,10 +5,12 @@ using MLDatasets
 include("./dataframe.jl")
 
 function mnist_cpu()
-    train_cpu = return_MNIST_df()
-    test_cpu = return_MNIST_df_t()
-    train_cpu=Matrix(train_cpu)[:,2:end]
-    test_cpu=Matrix(test_cpu)[:,2:end]
+    #train_cpu = return_MNIST_df()
+    #test_cpu = return_MNIST_df_t()
+    #train_cpu=Matrix(train_cpu)[:,2:end]
+    #test_cpu=Matrix(test_cpu)[:,2:end]
+    train_cpu = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))
+    test_cpu = Matrix(DataFrame(CSV.File("data/adult/x_test_oh.csv")))
     train_cpu, test_cpu
 end
 
@@ -55,7 +57,7 @@ function run(; batch_size = 512, num_epochs1 = 100, num_epochs2 = 100, num_epoch
 
     print("update parameters")
     @time ProbabilisticCircuits.update_parameters(bpc)
-    write("mnist35.jpc", pc)
+    write("adult.jpc", pc)
     ll1, ll2, ll3, batch_size, pseudocount, latents
 end
 

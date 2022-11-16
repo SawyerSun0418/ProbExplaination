@@ -5,9 +5,10 @@ using CSV
 using StatsBase: sample
 using ScikitLearn
 using Statistics
+using XGBoost
 include("./models.jl")
 
-function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::String, label::String ;sample_size=1000,is_Flux=true)
+function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::String, label::String ;sample_size=1000,is_Flux=true, is_xgb=false)
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     label_m=Matrix(DataFrame(CSV.File(label)))
     exp_m=Matrix(DataFrame(CSV.File(exp)))
@@ -15,6 +16,11 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
     explanation_m=Matrix(DataFrame(CSV.File(explanation)))
     if is_Flux
         logis=load_model("src/model/flux_NN_cancer.bson")
+    elseif is_xgb
+        x_train = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))     ###temperory solution for not able to load
+        y_train = vec(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
+        dtrain = DMatrix(x_train, label=y_train)
+        logis = xgboost(dtrain, num_round = 6, max_depth = 6, eta = 0.5, eval_metric = "error", objective = "binary:logistic")
     else 
         logis=train_LR()
     end
@@ -26,10 +32,13 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
     explanation_gpu=cu(explanation_m)
     S=ProbabilisticCircuits.sample(bpc, sample_size, explanation_gpu)
     S = Array{Int64}(S)
-    print(size(original_m,1))
     for i in 1:size(original_m,1)
         if is_Flux
             pred=logis(original_m[i,:])
+
+        elseif is_xgb
+            tem = reshape(original_m[i,:], 1, :)
+            pred = XGBoost.predict(logis,tem)
         else
             pred = ScikitLearn.predict(logis, [original_m[i,:]])
         end
@@ -38,6 +47,9 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
         for j in 1:sample_size
             if is_Flux
                 exp_pred=logis(S[j,i,:])
+            elseif is_xgb
+                tem = reshape(S[j,i,:], 1, :)
+                exp_pred = XGBoost.predict(logis,tem)
             else
                 exp_pred = ScikitLearn.predict(logis, [S[j,i,:]])
             end
@@ -99,9 +111,9 @@ function get_exp(exp::String,label::String)
     CSV.write("experiment_exp_5.csv",df_5)
 end
 
-pc = Base.read("trained_pc.jpc", ProbCircuit)
-sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
-get_exp("experiment_exp_c.csv","experiment_label_c.csv")
+pc = Base.read("adult.jpc", ProbCircuit)
+sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv", is_Flux=false, is_xgb=true)
+#get_exp("experiment_exp_c.csv","experiment_label_c.csv")
 #pc = Base.read("trained_pc.jpc", ProbCircuit)
 #sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
 #get_exp("experiment_exp_c.csv","experiment_label_c.csv")

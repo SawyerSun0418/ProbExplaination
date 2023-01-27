@@ -62,11 +62,6 @@ function data_pre()
     test=Matrix(test)
     y_train=train[:,1]'
     X_train=train[:,2:end]'
-    #train_size=size(y_train)[1]
-    #train_data=Array{Tuple{AbstractArray{Int},AbstractArray{Int}}}(undef, train_size)
-    #for i in 1:train_size
-    #    train_data[i]=(X_train[i,:],[y_train[i]])
-    #end
     y_test=test[:,1]
     X_test=test[:,2:end]
     train_data=[(X_train,y_train)]
@@ -75,12 +70,24 @@ function data_pre()
     
 end
 
+function data_pre_adult()
+    y_train=Matrix(DataFrame(CSV.File("data/adult/y_train.csv")))'
+    X_train=Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))'
+    y_test=Matrix(DataFrame(CSV.File("data/adult/y_test.csv")))
+    X_test=Matrix(DataFrame(CSV.File("data/adult/x_test_oh.csv")))
+    train_data=[(X_train,y_train)]
+    test_data=(X_test,y_test)
+    return train_data, test_data
+    
+end
+
 function train_NN_flux()
-    train_data, test_data=data_pre()
+    train_data, test_data=data_pre_adult()
     model = Chain(
-        Dense(784=>128, relu),
-        Dense(128=>10, relu),
-        Dense(10=>1, sigmoid)
+        Dense(76=>152, relu),
+        Dense(152=>100, relu),
+        Dense(100=>25, relu),
+        Dense(25=>1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()
@@ -90,7 +97,7 @@ function train_NN_flux()
     for epochs in 1:500
         Flux.train!(loss, Flux.params(model), train_data, opt)
         a=test(model,test_data)
-        if a>0.9
+        if a>0.7
             if a > h_a
                 history=model
                 h_a=a
@@ -107,11 +114,11 @@ function train_NN_flux()
 end
 
 function train_LR_flux()
-    train_data, test_data=data_pre()
+    train_data, test_data=data_pre_adult()
     model = Chain(
-        #Dense(784=>128, relu),
-        #Dense(128=>64, relu),
-        Dense(784=>1, sigmoid)
+        Dense(784=>128, relu),
+        Dense(128=>64, relu),
+        Dense(64=>1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()
@@ -143,8 +150,8 @@ end
 function save_model()
     model, test_data=train_NN_flux()
     a=test(model,test_data)
-    if a > 0.9
-        @save "src/model/flux_NN_MNIST.bson" model
+    if a > 0.7
+        @save "src/model/flux_NN_adult.bson" model
     else
         println("not accurate")
     end

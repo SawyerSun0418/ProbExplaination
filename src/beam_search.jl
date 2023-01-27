@@ -95,14 +95,15 @@ end
 function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=false, th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     if is_Flux
-        logis=load_model("src/model/flux_NN_cancer.bson")
-        ins_prob = logis(instance)
+        logis=load_model("src/model/flux_NN_MNIST.bson") |> gpu
+        # instance = instance |> gpu
+        # ins_prob = logis(instance)
 
     elseif is_xgb
         x_train = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))     ###temperory solution for not able to load
         y_train = vec(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
         dtrain = DMatrix(x_train, label=y_train)
-        logis = xgboost(dtrain, num_round = 6, max_depth = 6, eta = 0.5, eval_metric = "error", objective = "binary:logistic")
+        logis = xgboost(dtrain, num_round = 6, max_depth = 6, eta = 0.5, eval_metric = "error", objective = "binary:logitraw")
         temp = reshape(instance, 1, :)
         ins_prob = XGBoost.predict(logis,temp)
     else
@@ -110,7 +111,7 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
         ins_prob = ScikitLearn.predict_proba(logis, [instance])[:,2]
     end
     
-    println("p(c|x) is ",ins_prob)
+    # println("p(c|x) is ",ins_prob)
     if g_acce!=[] 
         data=init_instance_g(instance,g_acce,n)
     else
@@ -120,8 +121,8 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
     
     new_data=[]
     for r in 1:depth
-        S = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)  
-        S = Array{Int64}(S) # (sample_size, data_size, num_features)
+        S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)  
+        S_gpu = Array{Int64}(S_gpu) # (sample_size, data_size, num_features)
         num_cand=size(data_gpu)[1]  #number of candidates in one step of beam search
         cand = Array{Float64}(undef, num_cand)
         top_k=[]
@@ -130,7 +131,7 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
             for n in 1:num_cand
                 prediction_sum=0
                 if is_Flux
-                    prediction= logis(S[:,n,:]')
+                    prediction= logis(S_gpu[:,n,:]')
 
                 elseif is_xgb
                     prediction = XGBoost.predict(logis,S[:,n,:])
@@ -142,7 +143,6 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
                 cand[n]=exp
             end
         end
-        #deleteat!(cand, cand .== 1);
         if is_max
             top_k=partialsortperm(cand, 1:k, rev=true)  
             #if  th!=1 && mean(cand[top_k])>float(th)
@@ -180,22 +180,15 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
         end
 
         new_data=data[top_k,:]
-        
-        #temp=cu(new_data)
-        #temp_s=ProbabilisticCircuits.sample(bpc, sample_size, temp)
-        #num_cand=size(new_data)[1]
-        #for n in 1:num_cand
-        #    prediction_sum=0
-        #    prediction = ScikitLearn.predict_proba(logis, temp_s[:,n,:])[:,2]
-        #    prediction_sum=sum(prediction)
-        #    exps=prediction_sum/sample_size
-        #    display(exps)
-        #end
-        #return
         if g_acce!=[] 
-            data=expand_instance_g(instance,new_data,g_acce)
+            print("expand time")
+            @time begin
+                data=expand_instance_g(instance,new_data,g_acce)
+            end
         else
-            data=expand_instance(instance,new_data)
+            @time begin
+                data=expand_instance(instance,new_data)
+            end
         end
         data_gpu=cu(data)
     end
@@ -204,9 +197,9 @@ end
 
 
 
-function run_MNIST(w_g::Bool)
+function run_MNIST(num::Int)
     pc = Base.read("mnist35.jpc", ProbCircuit)
-    rand_ins=rand_instance(100)
+    rand_ins=rand_instance(num)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
     CSV.write("experiment_original_ins.csv",ins_df[:, Not(:x1)])     
@@ -215,33 +208,23 @@ function run_MNIST(w_g::Bool)
     label=Vector{Int}[]
     size=Vector{Int}[]
     index_g=[]
-    logis=load_model("src/model/flux_NN_MNIST.bson")
     n_g=100
     for ins in rand_ins
+        print("total time")
         @time begin
             is_Max=true
             l=ins[1]
             if ins[1]==0
                 is_Max=false
             end
-            println("time of gradient calculation")
-            @time begin
-                if w_g
-                    x=ins[2:end]
-                    gs=gradient(Flux.params(x,[l])) do 
-                        Flux.binarycrossentropy(logis(x), [l])
-                    end
-                    index_g=partialsortperm(abs.(gs[x]), 1:n_g, rev=true)
-                end
-            end
-            println("end")
+            #index_g = vec(Matrix(DataFrame(CSV.File("data/ranking.csv"))))[1:n_g]
             graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,g_acce=index_g,n=n_g)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])
             push!(size,[d])
         end
-        println("total time")
+        
     end
     result=reduce(vcat,result')
     Exp=reduce(vcat,Exp')
@@ -259,9 +242,9 @@ end
 
 
 
-function run_cancer()
+function run_cancer(num::Int)
     pc = Base.read("trained_pc.jpc", ProbCircuit)
-    rand_ins=rand_instance_cancer(300)
+    rand_ins=rand_instance_cancer(num)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
     CSV.write("experiment_original_ins_c.csv",ins_df[:, Not(:x1)])     
@@ -316,7 +299,7 @@ function run_adult()
             if l==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,is_Flux=false,is_xgb=true, depth=3)
+            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max, depth=11)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])

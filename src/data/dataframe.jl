@@ -1,9 +1,6 @@
 using CSV
-# using ROCAnalysis
 using MLBase
 using StatsBase
-#using Plots
-# using Lathe
 using DataFrames
 using CategoricalArrays
 using FreqTables

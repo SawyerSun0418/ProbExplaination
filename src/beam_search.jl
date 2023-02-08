@@ -25,7 +25,6 @@ function init_instance_g(instance::AbstractVector,index::AbstractVector,n::Int64
         in=index[i]                                            
         m[i,in]=instance[in]                                 
     end
-    #print(size(m))
     return m                                                
 end
 
@@ -61,7 +60,7 @@ function expand_instance(instance::AbstractVector,m::AbstractMatrix)
     for i in 1:num_k
         for j in 1:num_features                     # a k*n array where each row is a possible candidate with missing feature
             if ismissing(m[i,j])
-                newm = copy(m[i,:])
+                newm = m[i,:]
                 newm[j] = instance[j]
                 ret=[ret;newm']         
             end
@@ -90,59 +89,49 @@ function expand_instance_g(instance::AbstractVector,m::AbstractMatrix,index::Abs
     return ret
 end
 
+function model_pred_func(model_name::String, dataset::String)
+    if model_name == "Flux_NN"
+        if dataset == "mnist"
+            logis = load_model("src/model/flux_NN_MNIST_new.bson")
+        elseif dataset == "adult"
+            logis = load_model("src/model/flux_NN_adult.bson")
+        elseif dataset == "cancer"
+            logis = load_model("src/model/flux_NN_cancer.bson")
+        else error("unsupported dataset") end
+    elseif model_name == "Flux_LR"
+        if dataset == "mnist"
+            logis = load_model("src/model/flux_LR_MNIST.bson")
+        elseif dataset == "adult"
+            logis = load_model("src/model/flux_LR_adult.bson")
+        else error("unsupported dataset") end
+    else error("unsupported model") end
+    return logis
+end
+        
 
 
-function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=false, th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
+function beam_search(pc::ProbCircuit, instance, pred_func;is_max=true, th=1, k=3,depth=30,sample_size=100,g_acce=[],n=size(instance, 1))
     CUDA.@time bpc = CuBitsProbCircuit(pc);
-    if is_Flux
-        logis=load_model("src/model/flux_NN_MNIST.bson") |> gpu
-        # instance = instance |> gpu
-        # ins_prob = logis(instance)
-
-    elseif is_xgb
-        x_train = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))     ###temperory solution for not able to load
-        y_train = vec(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
-        dtrain = DMatrix(x_train, label=y_train)
-        logis = xgboost(dtrain, num_round = 6, max_depth = 6, eta = 0.5, eval_metric = "error", objective = "binary:logitraw")
-        temp = reshape(instance, 1, :)
-        ins_prob = XGBoost.predict(logis,temp)
-    else
-        logis=train_LR()
-        ins_prob = ScikitLearn.predict_proba(logis, [instance])[:,2]
-    end
-    
-    # println("p(c|x) is ",ins_prob)
+    instance = cu(instance)
+    pred_func = gpu(pred_func)
     if g_acce!=[] 
         data=init_instance_g(instance,g_acce,n)
     else
         data=init_instance(instance)
     end
+    data = collect(data)
     data_gpu = cu(data)
     
     new_data=[]
     for r in 1:depth
         S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)  
-        S_gpu = Array{Int64}(S_gpu) # (sample_size, data_size, num_features)
-        num_cand=size(data_gpu)[1]  #number of candidates in one step of beam search
-        cand = Array{Float64}(undef, num_cand)
+        S2_gpu = convert(CuArray{Int64}, permutedims(S_gpu, [3, 1, 2]))::CuArray{Int64}
         top_k=[]
         print("predict time")
-        @time begin
-            for n in 1:num_cand
-                prediction_sum=0
-                if is_Flux
-                    prediction= logis(S_gpu[:,n,:]')
-
-                elseif is_xgb
-                    prediction = XGBoost.predict(logis,S[:,n,:])
-                else
-                    prediction = ScikitLearn.predict_proba(logis, S[:,n,:])[:,2]   
-                end
-                prediction_sum=sum(prediction)
-                exp=prediction_sum/sample_size
-                cand[n]=exp
-            end
-        end
+        CUDA.@time prediction = pred_func(S2_gpu)
+        prediction_sum = dropdims(sum(prediction, dims=2), dims=2)
+        cand_gpu = prediction_sum/sample_size
+        cand = vec(cand_gpu)
         if is_max
             top_k=partialsortperm(cand, 1:k, rev=true)  
             #if  th!=1 && mean(cand[top_k])>float(th)
@@ -182,13 +171,10 @@ function beam_search(pc::ProbCircuit, instance;is_max=true,is_Flux=true,is_xgb=f
         new_data=data[top_k,:]
         if g_acce!=[] 
             print("expand time")
-            @time begin
-                data=expand_instance_g(instance,new_data,g_acce)
-            end
+            @time data=expand_instance_g(instance,new_data,g_acce)
         else
-            @time begin
-                data=expand_instance(instance,new_data)
-            end
+            print("expand time")
+            @time data=expand_instance(instance,new_data)
         end
         data_gpu=cu(data)
     end
@@ -197,8 +183,9 @@ end
 
 
 
-function run_MNIST(num::Int)
+function run_MNIST(num::Int, model::String)
     pc = Base.read("mnist35.jpc", ProbCircuit)
+    pred_func = model_pred_func(model, "mnist")
     rand_ins=rand_instance(num)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
@@ -209,8 +196,7 @@ function run_MNIST(num::Int)
     size=Vector{Int}[]
     index_g=[]
     n_g=100
-    for ins in rand_ins
-        print("total time")
+    for ins in rand_ins       
         @time begin
             is_Max=true
             l=ins[1]
@@ -218,11 +204,12 @@ function run_MNIST(num::Int)
                 is_Max=false
             end
             #index_g = vec(Matrix(DataFrame(CSV.File("data/ranking.csv"))))[1:n_g]
-            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,g_acce=index_g,n=n_g)
+            graph,exp,d=beam_search(pc,ins[2:end],pred_func,sample_size=300,is_max=is_Max,g_acce=index_g,n=n_g)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])
             push!(size,[d])
+            print("total time")
         end
         
     end
@@ -242,8 +229,9 @@ end
 
 
 
-function run_cancer(num::Int)
+function run_cancer(num::Int, model::String)
     pc = Base.read("trained_pc.jpc", ProbCircuit)
+    pred_func = model_pred_func(model, "cancer")
     rand_ins=rand_instance_cancer(num)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
@@ -259,7 +247,7 @@ function run_cancer(num::Int)
             if l==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max,depth=11)
+            graph,exp,d=beam_search(pc,ins[2:end],pred_func,sample_size=300,is_max=is_Max,depth=11)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])
@@ -282,9 +270,10 @@ end
 
 
 
-function run_adult()
+function run_adult(num::Int, model::String)
     pc = Base.read("adult.jpc", ProbCircuit)
-    rand_ins=rand_instance_adult(300)
+    pred_func = model_pred_func(model, "adult")
+    rand_ins=rand_instance_adult(num)
     ins_output=reduce(vcat,rand_ins')
     ins_df=DataFrame(ins_output,:auto)
     CSV.write("experiment_original_ins_c.csv",ins_df[:, Not(:x1)])     
@@ -299,7 +288,7 @@ function run_adult()
             if l==0
                 is_Max=false
             end
-            graph,exp,d=beam_search(pc,ins[2:end],sample_size=300,is_max=is_Max, depth=11)
+            graph,exp,d=beam_search(pc,ins[2:end],pred_func,sample_size=300,is_max=is_Max, depth=11)
             push!(result,graph)
             push!(Exp,[exp])
             push!(label,[l])

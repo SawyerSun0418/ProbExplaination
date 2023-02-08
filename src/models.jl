@@ -60,8 +60,8 @@ function data_pre()
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
-    y_train=train[:,1]'
-    X_train=train[:,2:end]'
+    y_train=permutedims(train[:,1])
+    X_train=permutedims(train[:,2:end])
     y_test=test[:,1]
     X_test=test[:,2:end]
     train_data=[(X_train,y_train)]
@@ -71,8 +71,8 @@ function data_pre()
 end
 
 function data_pre_adult()
-    y_train=Matrix(DataFrame(CSV.File("data/adult/y_train.csv")))'
-    X_train=Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))'
+    y_train=permutedims(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
+    X_train=permutedims(Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv"))))
     y_test=Matrix(DataFrame(CSV.File("data/adult/y_test.csv")))
     X_test=Matrix(DataFrame(CSV.File("data/adult/x_test_oh.csv")))
     train_data=[(X_train,y_train)]
@@ -82,12 +82,11 @@ function data_pre_adult()
 end
 
 function train_NN_flux()
-    train_data, test_data=data_pre_adult()
+    train_data, test_data=data_pre()
     model = Chain(
-        Dense(76=>152, relu),
-        Dense(152=>100, relu),
-        Dense(100=>25, relu),
-        Dense(25=>1, sigmoid)
+        Dense(784=>128, relu),
+        Dense(128=>10, relu),
+        Dense(10=>1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()
@@ -97,7 +96,7 @@ function train_NN_flux()
     for epochs in 1:500
         Flux.train!(loss, Flux.params(model), train_data, opt)
         a=test(model,test_data)
-        if a>0.7
+        if a>0.9
             if a > h_a
                 history=model
                 h_a=a
@@ -128,7 +127,7 @@ function train_LR_flux()
 end
 
 function accuracy(x,y,model)
-    prediction_class = [if i< 0.5 0 else 1 end for i in model(x')];
+    prediction_class = [if i< 0.5 0 else 1 end for i in model(permutedims(x))];
     count=0
     s=size(y)[1]
     for i in 1:s
@@ -150,8 +149,8 @@ end
 function save_model()
     model, test_data=train_NN_flux()
     a=test(model,test_data)
-    if a > 0.7
-        @save "src/model/flux_NN_adult.bson" model
+    if a > 0.9
+        @save "src/model/flux_NN_MNIST_new.bson" model
     else
         println("not accurate")
     end

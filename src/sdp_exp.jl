@@ -15,7 +15,7 @@ function sdp_exp(pc::ProbCircuit, exp::String, original::String, explanation::St
     original_m=Matrix(DataFrame(CSV.File(original)))
     explanation_m=Matrix(DataFrame(CSV.File(explanation)))
     if is_Flux
-        logis=load_model("src/model/flux_LR_adult.bson")
+        logis=load_model("src/model/flux_NN_MNIST_new.bson")
     elseif is_xgb
         x_train = Matrix(DataFrame(CSV.File("data/adult/x_train_oh.csv")))     ###temperory solution for not able to load
         y_train = vec(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
@@ -111,9 +111,9 @@ function get_exp(exp::String,label::String)
     CSV.write("experiment_exp_5.csv",df_5)
 end
 
-pc = Base.read("adult.jpc", ProbCircuit)
-sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
-get_exp("experiment_exp_c.csv","experiment_label_c.csv")
 #pc = Base.read("mnist35.jpc", ProbCircuit)
-#sdp_exp(pc,"experiment_exp.csv","experiment_original_ins.csv","experiment_plot.csv","experiment_label.csv")
-#get_exp("experiment_exp.csv","experiment_label.csv")
+#sdp_exp(pc,"experiment_exp_c.csv","experiment_original_ins_c.csv","experiment_plot_c.csv","experiment_label_c.csv")
+#get_exp("experiment_exp_c.csv","experiment_label_c.csv")
+pc = Base.read("mnist35.jpc", ProbCircuit)
+sdp_exp(pc,"experiment_exp.csv","experiment_original_ins.csv","experiment_plot.csv","experiment_label.csv")
+get_exp("experiment_exp.csv","experiment_label.csv")

@@ -1,22 +1,16 @@
 using CSV
-#using ROCAnalysis
 using MLBase
-using StatsBase
-#using Plots
-#using Lathe
+#using StatsBase
 using DataFrames
 using CategoricalArrays
 using FreqTables
 using Random
-#using Lathe.preprocess: TrainTestSplit
-#using MLJ
-using ScikitLearn
+#using ScikitLearn
 using Flux
 using MLUtils
 using BSON: @save
 using BSON: @load
-@sk_import linear_model: LogisticRegression
-include("./dataframe.jl")
+#@sk_import linear_model: LogisticRegression
 
 function splitdf(df, pct)
     @assert 0 <= pct <= 1
@@ -26,9 +20,39 @@ function splitdf(df, pct)
     return view(df, sel, :), view(df, .!sel, :)
 end
 
+function binvec(x::AbstractVector, n::Int,
+    rng::AbstractRNG=Random.default_rng())
+    n > 0 || throw(ArgumentError("number of bins must be positive"))
+    l = length(x)
 
-function train_LR()
-    df=return_df()
+    # find bin sizes
+    d, r = divrem(l, n)
+    lens = fill(d, n)
+    lens[1:r] .+= 1
+    # randomly decide which bins should be larger
+    shuffle!(rng, lens)
+
+    # ensure that we have data sorted by x, but ties are ordered randomly
+    df = DataFrame(id=axes(x, 1), x=x, r=rand(rng, l))
+    sort!(df, [:x, :r])
+
+    # assign bin ids to rows
+    binids = reduce(vcat, [fill(i, v) for (i, v) in enumerate(lens)])
+    df.binids = binids
+
+    # recover original row order
+    sort!(df, :id)
+    return df.binids
+end
+
+#= function train_LR()
+    df = DataFrame(CSV.File("data/data.csv"))
+    select!(df, Not([:id]))
+    for column in names(df)
+        if column!="diagnosis"
+            df[!,column]=binvec(df[!,column],5)
+        end
+    end
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
@@ -53,10 +77,9 @@ function train_LR()
     #popfirst!(i)
     #println(i)
     return model
-end
+end =#
 
-function data_pre()
-    df=return_MNIST_df()
+function data_pre(df)
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
@@ -82,7 +105,8 @@ function data_pre_adult()
 end
 
 function train_NN_flux()
-    train_data, test_data=data_pre()
+    df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
+    train_data, test_data=data_pre(df)
     model = Chain(
         Dense(784=>128, relu),
         Dense(128=>10, relu),
@@ -113,11 +137,10 @@ function train_NN_flux()
 end
 
 function train_LR_flux()
-    train_data, test_data=data_pre_adult()
+    df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
+    train_data, test_data=data_pre(df)
     model = Chain(
-        Dense(784=>128, relu),
-        Dense(128=>64, relu),
-        Dense(64=>1, sigmoid)
+        Dense(784 => 1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()

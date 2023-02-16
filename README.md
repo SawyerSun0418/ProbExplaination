@@ -64,5 +64,5 @@ from the generated files: experiment_exp_3.csv logs the expected prediction of i
 ## Example of running run_beam_search_exp.jl
 
 ```
-julia --project src/run_beam_search_exp.jl --dataset mnist --beam-size 3 --features-k 30 --num-sample 100 --classifier Flux_NN --circuit-path circuits/mnist35.jpc --num-output 3 --output-dir experiments --exp-id 123
+julia --project src/run_beam_search_exp.jl --dataset mnist --beam-size 3 --features-k 30 --num-sample 100 --classifier Flux_NN --circuit-path circuits/mnist35.jpc --num-output 3 --output-dir experiments --exp-id 123 --cuda 1
 ```

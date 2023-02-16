@@ -44,7 +44,10 @@ function parse_cmd()
             help = "if or if not use feature selection for mnist"
             arg_type = Bool
             default = false
-        
+        "--cuda"
+            help = "which gpu (starting from 1)"
+            arg_type = Int64
+            default = 1
     end
 
     return parse_args(s);
@@ -98,17 +101,17 @@ end
 function model_pred_func(model_name::String, dataset::String)
     if model_name == "Flux_NN"
         if dataset == "mnist"
-            logis = load_model("src/model/flux_NN_MNIST_new.bson")
+            logis = load_model("models/flux_NN_MNIST_new.bson")
         elseif dataset == "adult"
-            logis = load_model("src/model/flux_NN_adult.bson")
+            logis = load_model("models/flux_NN_adult.bson")
         elseif dataset == "cancer"
-            logis = load_model("src/model/flux_NN_cancer.bson")
+            logis = load_model("models/flux_NN_cancer.bson")
         else error("unsupported dataset") end
     elseif model_name == "Flux_LR"
         if dataset == "mnist"
-            logis = load_model("src/model/flux_LR_MNIST.bson")
+            logis = load_model("models/flux_LR_MNIST.bson")
         elseif dataset == "adult"
-            logis = load_model("src/model/flux_LR_adult.bson")
+            logis = load_model("models/flux_LR_adult.bson")
         else error("unsupported dataset") end
     else error("unsupported model") end
     return logis
@@ -195,6 +198,9 @@ end
 
 parsed_args = parse_cmd();
 ############
+
+cuda_idx = parsed_args["cuda"] 
+device!(collect(devices())[cuda_idx])
 
 id = parsed_args["exp-id"]
 

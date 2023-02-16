@@ -88,23 +88,22 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
         print("Sample time....")
         CUDA.@time begin
             S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)                    # (num_samples, size(data_gpu, 1), size(data_gpu, 2))
-            @show typeof(S_gpu)
-
-            S2_gpu = permutedims(S_gpu, [3, 1, 2])                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
-            # S2_gpu = unsafe_wrap(CuArray, CuPtr{Int64}(pointer(S2_gpu)), size(S2_gpu))
-            # CUDA.@time S2_gpu = convert(CuArray{Int64}, S2_gpu)
-            @show typeof(S_gpu)
         end
 
         print("Predict time...")
         CUDA.@time begin
+            S2_gpu = permutedims(S_gpu, [3, 1, 2])                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
+            # S2_gpu = unsafe_wrap(CuArray, CuPtr{Int64}(pointer(S2_gpu)), size(S2_gpu)) # not sure if correct
+            # CUDA.@time S2_gpu = convert(CuArray{Int64}, S2_gpu) # too slow
+
             predictions = pred_func(S2_gpu)                                                     # (size(data_gpu, 1), num_samples)
             cand_gpu =  vec(mean(predictions, dims=2))                                          # (size(data_gpu, 1))
-            cand = Array(cand_gpu)::Array # move to cpu
         end
 
         print("Expand time....")
         CUDA.@time begin
+            cand = Array(cand_gpu)::Array # move to cpu
+
             top_k = partialsortperm(cand, 1:beam_size, rev=is_max)  
             if r == depth
                 first = top_k[1]

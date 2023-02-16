@@ -88,7 +88,12 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
         print("Sample time....")
         CUDA.@time begin
             S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)                    # (num_samples, size(data_gpu, 1), size(data_gpu, 2))
-            S2_gpu = convert(CuArray{Int64}, permutedims(S_gpu, [3, 1, 2]))::CuArray{Int64}     # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
+            @show typeof(S_gpu)
+
+            S2_gpu = permutedims(S_gpu, [3, 1, 2])                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
+            # S2_gpu = unsafe_wrap(CuArray, CuPtr{Int64}(pointer(S2_gpu)), size(S2_gpu))
+            # CUDA.@time S2_gpu = convert(CuArray{Int64}, S2_gpu)
+            @show typeof(S_gpu)
         end
 
         print("Predict time...")

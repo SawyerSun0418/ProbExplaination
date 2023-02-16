@@ -84,7 +84,7 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
     
     new_data = []
     for r in 1:depth
-        println("===Depth $(depth)===")
+        println("===Depth $(r)===")
         print("Sample time....")
         CUDA.@time begin
             S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)                    # (num_samples, size(data_gpu, 1), size(data_gpu, 2))

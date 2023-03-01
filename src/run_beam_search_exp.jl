@@ -53,11 +53,11 @@ function parse_cmd()
     return parse_args(s);
 end
 
-function rand_instance(num, dataset)
+function rand_instance(num, dataset, logis, is_xgb)
     if dataset == "mnist"
         df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
     elseif dataset == "adult"
-        df=DataFrame(CSV.File("data/adult/x_test_oh_util.csv"))
+        df=DataFrame(CSV.File("data/adult/x_test_util.csv"))
     elseif dataset == "cancer"
         df = DataFrame(CSV.File("data/data.csv"))
         select!(df, Not([:id]))
@@ -69,7 +69,26 @@ function rand_instance(num, dataset)
     end
     df=Matrix(df)
     df=[df[i,:] for i in 1:size(df,1)]
-    result=StatsBase.sample(df, num; replace=false)
+    if is_xgb
+        correct = x -> XGBoost.predict(logis, (x[2:end], [0]) ) == x[1]                         #LoadError: ArgumentError: DMatrix requires either an AbstractMatrix or table satisfying the Tables.jl interface
+        incorrect = x -> XGBoost.predict(logis, (x[2:end], [0]) ) != x[1]
+    else
+        correct = x -> logis(x[2:end]) == x[1]
+        incorrect = x -> logis(x[2:end]) != x[1]
+    end
+    filtered_correct = filter(correct, df)
+    filtered_incorrect = filter(incorrect, df)
+    if length(filtered_correct) < num
+        selected_correct = filtered_correct
+    else
+        selected_correct = shuffle(filtered_correct)[1:num]
+    end
+    if length(filtered_incorrect) < num
+        selected_incorrect = filtered_incorrect
+    else
+        selected_incorrect = shuffle(filtered_incorrect)[1:num]
+    end
+    result = vcat(selected_correct, selected_incorrect)
     return result
 end
 
@@ -88,7 +107,21 @@ function model_pred_func(model_name::String, dataset::String)
         elseif dataset == "adult"
             logis = load_model("models/flux_LR_adult.bson")
         else error("unsupported dataset") end
-    else error("unsupported model") end
+    elseif model_name == "XGBoost"
+        if dataset == "adult"
+            logis = load_model("models/XGBoost_adult.bson")
+        else error("unsupported dataset") end
+    elseif model_name == "Flux_CNN"
+        if dataset == "mnist"
+            logis = load_model("models/flux_NN_MNIST.bson")
+        else error("unsupported dataset") end
+    else 
+        try
+            logis = load_model(model_name)
+        catch
+            error("could not find this model")
+        end
+    end
     return logis
 end
 
@@ -180,7 +213,14 @@ device!(collect(devices())[cuda_idx])
 id = parsed_args["exp-id"]
 
 dataset = parsed_args["dataset"]
+is_xgb = false
+is_cnn = false
 classifier = parsed_args["classifier"]
+if classifier == "XGBoost"
+    is_xgb = true
+elseif classifier == "Flux_CNN"
+    is_cnn = true
+end
 logis = model_pred_func(classifier, dataset)
 
 pc_path = parsed_args["circuit-path"]
@@ -193,7 +233,7 @@ num_sample = parsed_args["num-sample"]
 output_dir = parsed_args["output-dir"]
 select = parsed_args["feature-selection"]
 
-rand_ins=rand_instance(num, dataset)
+rand_ins=rand_instance(num, dataset, logis, is_xgb)
 ins_output=reduce(vcat,rand_ins')
 ins_df=DataFrame(ins_output,:auto)
 CSV.write(output_dir*"/"*"experiment_original_ins"*"_"*id*".csv",ins_df[:, Not(:x1)])     
@@ -214,7 +254,7 @@ for ins in rand_ins
         if ins[1]==0
             is_Max=false
         end
-        graph,exp,d=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k)
+        graph,exp,d=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k, is_xgb = is_xgb, is_cnn = is_cnn)
         push!(result,graph)
         push!(Exp,[exp])
         push!(label,[l])

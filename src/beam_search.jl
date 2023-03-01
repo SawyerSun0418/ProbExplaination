@@ -68,7 +68,7 @@ end
 
 
 function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_size = 3,
-                                                            depth = 30, sample_size = 100, g_acce = [], n = size(instance, 1))
+                                                            depth = 30, sample_size = 100, g_acce = [], n = size(instance, 1), is_xgb = false, is_cnn = false)
 
     
     CUDA.@time bpc = CuBitsProbCircuit(pc);
@@ -89,14 +89,31 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
         CUDA.@time begin
             S_gpu = ProbabilisticCircuits.sample(bpc, sample_size, data_gpu)                    # (num_samples, size(data_gpu, 1), size(data_gpu, 2))
         end
+        
 
         print("Predict time...")
         CUDA.@time begin
-            S2_gpu = permutedims(S_gpu, [3, 1, 2])                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
+            
             # S2_gpu = unsafe_wrap(CuArray, CuPtr{Int64}(pointer(S2_gpu)), size(S2_gpu)) # not sure if correct
             # CUDA.@time S2_gpu = convert(CuArray{Int64}, S2_gpu) # too slow
-
-            predictions = pred_func(S2_gpu)                                                     # (size(data_gpu, 1), num_samples)
+            if is_xgb
+                #S_gpu_r = reshape(S_gpu, (size(S_gpu, 1) * size(S_gpu, 2), size(S_gpu, 3)))    
+                all_zeros = CUDA.zeros(size(S_gpu, 2))                              
+                d = DMatrix(S_gpu, label=all_zeros)
+                predictions = XGBoost.predict(pred_func, d)
+            else 
+                if is_cnn
+                    n_features = size(S_gpu, 1)
+                    n_instances = size(S_gpu, 2)                                             #dimension issue
+                    height, width, n_channels = 28, 28, 1
+                    for i in 1:sample_size
+                        S_gpu[i,:,:] = permutedims(reshape(permutedims(S_gpu[i,:,:]), (height, width, n_channels, n_instances)), (2,1,3,4))
+                    end
+                    @show size(S_gpu)
+                    S2_gpu = permutedims(S_gpu, [2,3,4,5,1])
+                else S2_gpu = permutedims(S_gpu, [3, 1, 2]) end                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
+                predictions = pred_func(S2_gpu)                                                     # (size(data_gpu, 1), num_samples)
+            end
             cand_gpu =  vec(mean(predictions, dims=2))                                          # (size(data_gpu, 1))
         end
 

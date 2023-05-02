@@ -70,7 +70,7 @@ end
 function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_size = 3,
                                                             depth = 30, sample_size = 100, g_acce = [], n = size(instance, 1), is_xgb = false, is_cnn = false)
 
-    
+    history = Matrix{Union{Missing, Int64}}(undef, 0, size(instance, 2)) 
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     instance = instance
     pred_func = gpu(pred_func)
@@ -103,14 +103,15 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
                 predictions = XGBoost.predict(pred_func, d)
             else 
                 if is_cnn
-                    n_features = size(S_gpu, 1)
-                    n_instances = size(S_gpu, 2)                                             #dimension issue
+                    S_gpu_r = reshape(S_gpu, (size(S_gpu, 1) * size(S_gpu, 2), size(S_gpu, 3))) 
+                    n_features = size(S_gpu_r, 2)
+                    n_instances = size(S_gpu_r, 1)                                             #dimension issue
                     height, width, n_channels = 28, 28, 1
-                    for i in 1:sample_size
-                        S_gpu[i,:,:] = permutedims(reshape(permutedims(S_gpu[i,:,:]), (height, width, n_channels, n_instances)), (2,1,3,4))
-                    end
-                    @show size(S_gpu)
-                    S2_gpu = permutedims(S_gpu, [2,3,4,5,1])
+                    S_gpu_r = permutedims(reshape(permutedims(S_gpu_r), (height, width, n_channels, n_instances)), (2,1,3,4))   #flatten the samples*instances and do ave on certain index range
+                    predictions = pred_func(S_gpu_r)
+                    println("here")
+                    @show size(predictions)
+                    error("Program terminated.")
                 else S2_gpu = permutedims(S_gpu, [3, 1, 2]) end                                              # (size(data_gpu, 2), num_samples, size(data_gpu, 1))
                 predictions = pred_func(S2_gpu)                                                     # (size(data_gpu, 1), num_samples)
             end
@@ -126,10 +127,12 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
                 first = top_k[1]
                 result = data[first,:]
                 exps = cand[first]
-                return result, exps, r
+                history = cat(history, result, dims=1)
+                return result, exps, r, history
             end
     
             new_data = data[top_k,:]
+            history = cat(history, new_data, dims=1)
             if g_acce != [] 
                 data = expand_instance_g(instance,new_data,g_acce)
             else

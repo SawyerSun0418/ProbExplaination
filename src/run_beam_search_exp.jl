@@ -53,7 +53,7 @@ function parse_cmd()
     return parse_args(s);
 end
 
-function rand_instance(num, dataset, logis, is_xgb)
+function rand_instance(num, dataset, logis, is_xgb, is_cnn)
     if dataset == "mnist"
         df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
     elseif dataset == "adult"
@@ -72,9 +72,16 @@ function rand_instance(num, dataset, logis, is_xgb)
     if is_xgb
         correct = x -> XGBoost.predict(logis, (x[2:end], [0]) ) == x[1]                         #LoadError: ArgumentError: DMatrix requires either an AbstractMatrix or table satisfying the Tables.jl interface
         incorrect = x -> XGBoost.predict(logis, (x[2:end], [0]) ) != x[1]
+    elseif is_cnn
+        correct = x -> let x_2d = permutedims(reshape(permutedims(x[2:end]), (28, 28, 1, 1)), (2,1,3,4))
+                        round(logis(x_2d)[1]) == x[1]
+                        end
+        incorrect = x -> let x_2d = permutedims(reshape(permutedims(x[2:end]), (28, 28, 1, 1)), (2,1,3,4))
+                        round(logis(x_2d)[1]) != x[1]
+                        end
     else
-        correct = x -> logis(x[2:end]) == x[1]
-        incorrect = x -> logis(x[2:end]) != x[1]
+        correct = x -> round(logis(x[2:end])[1]) == x[1]
+        incorrect = x -> round(logis(x[2:end])[1]) != x[1]
     end
     filtered_correct = filter(correct, df)
     filtered_incorrect = filter(incorrect, df)
@@ -88,6 +95,8 @@ function rand_instance(num, dataset, logis, is_xgb)
     else
         selected_incorrect = shuffle(filtered_incorrect)[1:num]
     end
+    @show size(selected_correct)
+    @show size(selected_incorrect)
     result = vcat(selected_correct, selected_incorrect)
     return result
 end
@@ -113,7 +122,7 @@ function model_pred_func(model_name::String, dataset::String)
         else error("unsupported dataset") end
     elseif model_name == "Flux_CNN"
         if dataset == "mnist"
-            logis = load_model("models/flux_NN_MNIST.bson")
+            logis = load_model("models/flux_CNN_MNIST.bson")
         else error("unsupported dataset") end
     else 
         try
@@ -233,7 +242,7 @@ num_sample = parsed_args["num-sample"]
 output_dir = parsed_args["output-dir"]
 select = parsed_args["feature-selection"]
 
-rand_ins=rand_instance(num, dataset, logis, is_xgb)
+rand_ins=rand_instance(num, dataset, logis, is_xgb, is_cnn)
 ins_output=reduce(vcat,rand_ins')
 ins_df=DataFrame(ins_output,:auto)
 CSV.write(output_dir*"/"*"experiment_original_ins"*"_"*id*".csv",ins_df[:, Not(:x1)])     
@@ -247,14 +256,19 @@ if select
     index_g = vec(Matrix(DataFrame(CSV.File("data/ranking.csv"))))[1:n_g]
 end
 
+ins_num = 1
+
 for ins in rand_ins       
     @time begin
         is_Max=true
         l=ins[1]
-        if ins[1]==0
-            is_Max=false
+        if round(logis(ins[2:end])[1])==0
+            is_Max=false             #choose based on prediction
         end
-        graph,exp,d=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k, is_xgb = is_xgb, is_cnn = is_cnn)
+        graph,exp,d, history=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k, is_xgb = is_xgb, is_cnn = is_cnn)
+        history_df=DataFrame(history,:auto)
+        CSV.write(output_dir*"/"*"history_instance_$ins_num.csv",df)
+        ins_num +=1
         push!(result,graph)
         push!(Exp,[exp])
         push!(label,[l])

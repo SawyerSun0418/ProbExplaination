@@ -1,13 +1,13 @@
 using CSV
+# using ROCAnalysis
+using MLBase
+using StatsBase
+#using Plots
+# using Lathe
 using DataFrames
+using CategoricalArrays
+using FreqTables
 using Random
-function splitdf(df, pct)
-    @assert 0 <= pct <= 1
-    ids = collect(axes(df, 1))
-    shuffle!(ids)
-    sel = ids .<= nrow(df) .* pct
-    return view(df, sel, :), view(df, .!sel, :)
-end
 
 function binvec(x::AbstractVector, n::Int,
     rng::AbstractRNG=Random.default_rng())
@@ -34,27 +34,47 @@ function binvec(x::AbstractVector, n::Int,
     return df.binids
 end
 
-function data_pre(df)
+function splitdf(df, pct)
+    @assert 0 <= pct <= 1
+    ids = collect(axes(df, 1))
+    shuffle!(ids)
+    sel = ids .<= nrow(df) .* pct
+    return view(df, sel, :), view(df, .!sel, :)
+end
+
+function data_pre(df; indices = [])
     train, test = splitdf(df, 0.6);
     train=Matrix(train)
     test=Matrix(test)
     y_train=permutedims(train[:,1])
-    X_train=permutedims(train[:,2:end])
+    X_train=indices == [] ? permutedims(train[:,2:end]) : permutedims(train[:,indices])
     y_test=test[:,1]
-    X_test=test[:,2:end]
+    X_test=indices == [] ? test[:,2:end] : test[:,indices]
     train_data=[(X_train,y_train)]
     test_data=(X_test,y_test)
     return train_data, test_data
     
 end
 
-function data_pre_adult()
-    y_train=permutedims(Matrix(DataFrame(CSV.File("data/adult/y_train.csv"))))
-    X_train=permutedims(Matrix(DataFrame(CSV.File("data/adult/x_train.csv"))))
-    y_test=Matrix(DataFrame(CSV.File("data/adult/y_test.csv")))
-    X_test=Matrix(DataFrame(CSV.File("data/adult/x_test.csv")))
-    train_data=[(X_train,y_train)]
-    test_data=(X_test,y_test)
-    return train_data, test_data
-    
+
+
+function return_df()    
+    df = DataFrame(CSV.File("data/data.csv"))
+    select!(df, Not([:id]))
+    for column in names(df)
+        if column!="diagnosis"
+            df[!,column]=binvec(df[!,column],5)
+        end
+    end
+    return df
+end
+
+function return_MNIST_df()    
+    df = DataFrame(CSV.File("data/mnist_3_5_train.csv"))
+    return df
+end
+
+function return_MNIST_df_t()    
+    df = DataFrame(CSV.File("data/mnist_3_5_test.csv"))
+    return df
 end

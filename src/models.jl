@@ -61,7 +61,7 @@ function train_CNN_flux()
     test_imgs = permutedims(reshape(permutedims(test_data[1]), (height, width, n_channels, n_instances)), (2,1,3,4))
     test_labels = test_data[2]
     model = Chain(
-        Conv((3, 3), 1=>16, pad=(1,1), relu),
+        #= Conv((3, 3), 1=>16, pad=(1,1), relu),
         x -> maxpool(x, (2,2)),
 
         Conv((3, 3), 16=>32, pad=(1,1), relu),
@@ -71,7 +71,27 @@ function train_CNN_flux()
         x -> maxpool(x, (2,2)),
 
         x -> reshape(x, :, size(x, 4)),
-        Dense(288, 10),
+        Dense(288, 10), =#
+        Conv((3, 3), 1=>32, relu),
+        BatchNorm(32),
+        Conv((3, 3), 32=>32, relu),
+        BatchNorm(32),
+        Conv((5, 5), 32=>32, stride=(2, 2), pad=(2, 2), relu),
+        BatchNorm(32),
+        Dropout(0.4),
+        Conv((3, 3), 32=>64, relu),
+        BatchNorm(64),
+        Conv((3, 3), 64=>64, relu),
+        BatchNorm(64),
+        Conv((5, 5), 64=>64, stride=(2, 2), pad=(2, 2), relu),
+        BatchNorm(64),
+        Dropout(0.4),
+       # x -> @show(size(x)),
+        x -> reshape(x, :, size(x, 4)),
+        Dense(1024=>128, relu),
+        BatchNorm(128),
+        Dropout(0.4),
+        Dense(128=>10, relu),
         Dense(10=>1, sigmoid)
     )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
@@ -104,16 +124,21 @@ end
 
 function train_LR_flux()
     df = DataFrame(CSV.File("data/mnist_3_5_train.csv"))
-    train_data, test_data=data_pre(df)
+    indices = [255, 256, 257, 258, 259, 260, 261, 283, 284, 285, 286, 287, 288, 289, 311, 312, 313, 314, 315, 316, 317, 339, 340, 341, 342, 343, 344, 345, 367, 368, 369, 370, 371, 372, 373, 395, 396, 397, 398, 399, 400, 401, 423, 424, 425, 426, 427, 428, 429]
+    train_data, test_data=data_pre(df, indices = indices)
+    train_data
     model = Chain(
-        Dense(784 => 1, sigmoid)
+        Dense(49 => 1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()
     for i = 1:250
         Flux.train!(loss, Flux.params(model), train_data, opt)
     end
-    
+    X_train, y_train = train_data[1]
+    prediction_class = [if i< 0.5 0 else 1 end for i in model(X_train)];
+    a = mean(vec(prediction_class) .== vec(y_train))
+    println("\nAccuracy: $a")
     return model, test_data
 end
 

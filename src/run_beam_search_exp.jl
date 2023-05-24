@@ -2,7 +2,8 @@ using ArgParse
 using Random
 using StatsBase
 include("./beam_search.jl");
-
+include("regenerate.jl");
+include("util.jl")
 
 function parse_cmd()
     s = ArgParseSettings()
@@ -67,7 +68,13 @@ function rand_instance(num, dataset, logis, is_xgb, is_cnn)
             end
         end
     end
+
+    ###############################temp solution#####################################
+
+    #indices = [1, 255, 256, 257, 258, 259, 260, 261, 283, 284, 285, 286, 287, 288, 289, 311, 312, 313, 314, 315, 316, 317, 339, 340, 341, 342, 343, 344, 345, 367, 368, 369, 370, 371, 372, 373, 395, 396, 397, 398, 399, 400, 401, 423, 424, 425, 426, 427, 428, 429]
+    
     df=Matrix(df)
+    #df = df[:,indices]
     df=[df[i,:] for i in 1:size(df,1)]
     if is_xgb
         correct = x -> XGBoost.predict(logis, (x[2:end], [0]) ) == x[1]                         #LoadError: ArgumentError: DMatrix requires either an AbstractMatrix or table satisfying the Tables.jl interface
@@ -134,83 +141,7 @@ function model_pred_func(model_name::String, dataset::String)
     return logis
 end
 
-function sdp_exp(pc::ProbCircuit, logis, out_dir, id, exp, original, explanation, label ;sample_size=1000)
-    CUDA.@time bpc = CuBitsProbCircuit(pc);
-    label_m=Matrix(label)
-    exp_m=Matrix(exp)
-    original_m=Matrix(original)
-    explanation_m=Matrix(explanation)
-    sdp=Vector{Float64}[]
-    exp_3=0
-    exp_5=0
-    size_3=0
-    size_5=0
-    explanation_gpu=cu(explanation_m)
-    S=ProbabilisticCircuits.sample(bpc, sample_size, explanation_gpu)
-    S = Array{Int64}(S)
-    for i in 1:size(original_m,1)
-        pred=logis(original_m[i,:])
-        pred = [if x < 0.5 0 else 1 end for x in pred];
-        temp=0
-        for j in 1:sample_size
-            exp_pred=logis(S[j,i,:])
-            exp_pred = [if x < 0.5 0 else 1 end for x in exp_pred];
-            if exp_pred==pred
-                temp+=1
-            end
-        end
-        temp=temp/sample_size
-        push!(sdp,[temp])
-        if label_m[i,1]==1
-            exp_3+=exp_m[i,1]
-            size_3+=1
-        else
-            exp_5+=exp_m[i,1]
-            size_5+=1
-        end
-    end
-    ave=mean(sdp)
-    push!(sdp,ave)
-    s=std(sdp)
-    push!(sdp,s)
-    ave_3=exp_3/size_3
-    ave_5=exp_5/size_5
-    sdp=reduce(vcat,sdp')
-    df=DataFrame(sdp,:auto)
 
-    CSV.write(out_dir*"/"*"experiment_sdp"*"_"*id*".csv",df)
-    println("ave exp for 3:",ave_3)
-    println("ave exp for 5:",ave_5)
-end
-
-
-function get_exp(exp,label, out_dir, id)
-    label_m=Matrix(label)
-    exp_m=Matrix(exp)
-    exp_3=Vector{Float64}[]
-    exp_5=Vector{Float64}[]
-    for i in 1:size(exp_m,1)
-        if label_m[i,1]==1
-            push!(exp_3,[exp_m[i,1]])
-        else
-            push!(exp_5,[exp_m[i,1]])
-        end
-    end
-    ave_3=mean(exp_3)
-    push!(exp_3,ave_3)
-    std_3=std(exp_3)
-    push!(exp_3,std_3)
-    ave_5=mean(exp_5)
-    push!(exp_5,ave_5)
-    std_5=std(exp_5)
-    push!(exp_5,std_5)
-    exp_3=reduce(vcat,exp_3')
-    df_3=DataFrame(exp_3,:auto)
-    CSV.write(out_dir*"/"*"experiment_exp_1"*"_"*id*".csv",df_3)
-    exp_5=reduce(vcat,exp_5')
-    df_5=DataFrame(exp_5,:auto)
-    CSV.write(out_dir*"/"*"experiment_exp_0"*"_"*id*".csv",df_5)
-end
 
 
 parsed_args = parse_cmd();
@@ -262,13 +193,18 @@ for ins in rand_ins
     @time begin
         is_Max=true
         l=ins[1]
-        if round(logis(ins[2:end])[1])==0
+        pred = round(logis(ins[2:end])[1])
+        if pred==0
             is_Max=false             #choose based on prediction
         end
-        graph,exp,d, history=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k, is_xgb = is_xgb, is_cnn = is_cnn)
+        graph,exp,d, history, exp_history=beam_search(pc,ins[2:end],logis,sample_size=num_sample,is_max=is_Max,g_acce=index_g,n=n_g, beam_size = beam_size, depth = k, is_xgb = is_xgb, is_cnn = is_cnn)
         history_df=DataFrame(history,:auto)
-        CSV.write(output_dir*"/"*"history_instance_$ins_num.csv",df)
-        ins_num +=1
+        exp_history = reduce(vcat, exp_history')
+        exp_h = DataFrame(exp_history, :auto)
+        CSV.write(output_dir*"/"*"exp_history_instance_$ins_num.csv",exp_h)
+        CSV.write(output_dir*"/"*"history_instance_$ins_num.csv",history_df)
+        sdp_h(pc, logis, output_dir, ins_num, pred, history_df)
+        global ins_num +=1
         push!(result,graph)
         push!(Exp,[exp])
         push!(label,[l])
@@ -291,3 +227,5 @@ CSV.write(output_dir*"/"*"experiment_label"*"_"*id*".csv",label_df)
 CSV.write(output_dir*"/"*"experiment_size"*"_"*id*".csv",size_df)
 sdp_exp(pc, logis, output_dir, id, exp_df,ins_df[:, Not(:x1)],df,label_df)
 get_exp(exp_df,label_df, output_dir, id)
+df_r = regenerate(pc,output_dir*"/"*"experiment_plot"*"_"*id*".csv",2*num, sample_size = 9)
+CSV.write(output_dir*"/"*"experiment_sampled"*"_"*id*".csv",df_r)

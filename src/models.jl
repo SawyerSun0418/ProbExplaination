@@ -124,16 +124,23 @@ end
 
 function train_LR_flux()
     df = DataFrame(CSV.File("data/mnist_3_5_train.csv"))
+    indices = []
     indices = [255, 256, 257, 258, 259, 260, 261, 283, 284, 285, 286, 287, 288, 289, 311, 312, 313, 314, 315, 316, 317, 339, 340, 341, 342, 343, 344, 345, 367, 368, 369, 370, 371, 372, 373, 395, 396, 397, 398, 399, 400, 401, 423, 424, 425, 426, 427, 428, 429]
-    train_data, test_data=data_pre(df, indices = indices)
-    train_data
+    mask = zeros(784)
+    mask[indices] .= 1
+    mask = mask'
+    train_data, test_data=data_pre(df)
     model = Chain(
-        Dense(49 => 1, sigmoid)
+        Dense(784 => 1, sigmoid)
         )
     loss(x, y) = Flux.binarycrossentropy(model(x), y)
     opt = Flux.Optimise.ADAM()
+    Flux.params(model)[1] .= Flux.params(model)[1] .* mask
+    #print(Flux.params(model))
     for i = 1:250
-        Flux.train!(loss, Flux.params(model), train_data, opt)
+        Flux.train!(loss, Flux.params(model), train_data, opt) 
+        Flux.params(model)[1] .= Flux.params(model)[1] .* mask
+        #print(Flux.params(model))
     end
     X_train, y_train = train_data[1]
     prediction_class = [if i< 0.5 0 else 1 end for i in model(X_train)];

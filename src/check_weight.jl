@@ -2,7 +2,7 @@ using Flux
 using Flux: params
 include("./models.jl")
 
-logis = load_model("models/flux_LR_MNIST.bson")
+logis = load_model("models/flux_LR_MNIST_topright.bson")
 # Create an empty DataFrame
 df = DataFrame(Parameter = String[], Layer = String[], Index = String[], Value = Float64[])
 
@@ -17,5 +17,5 @@ for (i, p) in enumerate(params(logis))
 end
 
 # Write the DataFrame to a CSV file
-CSV.write("model_weights.csv", df)
+CSV.write("model_weights_topright.csv", df)
 

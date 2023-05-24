@@ -70,7 +70,8 @@ end
 function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_size = 3,
                                                             depth = 30, sample_size = 100, g_acce = [], n = size(instance, 1), is_xgb = false, is_cnn = false)
 
-    history = Matrix{Union{Missing, Int64}}(undef, 0, size(instance, 2)) 
+    history = Matrix{Union{Missing, Int64}}(undef, 0, size(instance, 1)) 
+    exp_history = []
     CUDA.@time bpc = CuBitsProbCircuit(pc);
     instance = instance
     pred_func = gpu(pred_func)
@@ -123,15 +124,21 @@ function beam_search(pc::ProbCircuit, instance, pred_func; is_max=true, beam_siz
             cand = Array(cand_gpu)::Array # move to cpu
 
             top_k = partialsortperm(cand, 1:beam_size, rev=is_max)  
+            
             if r == depth
                 first = top_k[1]
                 result = data[first,:]
                 exps = cand[first]
-                history = cat(history, result, dims=1)
-                return result, exps, r, history
+                exp_history = vcat(exp_history, [[exps]])
+                #@show size(result)
+                history = cat(history, reshape(result, 1, 784), dims=1)
+                return result, exps, r, history, exp_history
             end
-    
+            for k in top_k
+                exp_history = vcat(exp_history, [cand[k]])
+            end
             new_data = data[top_k,:]
+            #@show size(new_data)
             history = cat(history, new_data, dims=1)
             if g_acce != [] 
                 data = expand_instance_g(instance,new_data,g_acce)

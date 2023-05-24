@@ -8,7 +8,7 @@ include("./models.jl")
 include("regenerate.jl")
 
 # Read the CSV file
-csv_file = "data/mnist_3_5_test.csv" # Replace with your CSV file path
+csv_file = "data/mnist_3_5_test.csv"
 df = CSV.read(csv_file, DataFrame)
 
 # Number of rows to select randomly
@@ -29,7 +29,7 @@ result=Vector{Union{Missing, Int64}}[]
 for i in 1:num_rows
     row = sampled_matrix[i,:]
     pixels = row[2:end]
-    label = row[1]
+    label = logis(pixels)
     target_indices = findall(x -> x == 1, pixels)
     temp = label == 1 ? fill(-Inf, size(first_layer_weights)) : fill(Inf, size(first_layer_weights))
     for index in target_indices
@@ -46,11 +46,11 @@ end
 
 result=reduce(vcat,result')
 df=DataFrame(result,:auto)
-output_dir = "experiments/MNIST/weights/10"
+output_dir = "experiments/MNIST/weights_pred/10"
 id = "1"
 CSV.write(output_dir*"/"*"experiment_plot"*"_"*id*".csv",df)
 pc = Base.read("circuits/mnist35.jpc", ProbCircuit)
-df_r = regenerate(pc,output_dir*"/"*"experiment_plot"*"_"*id*".csv",size(result,1))
+df_r = regenerate(pc,output_dir*"/"*"experiment_plot"*"_"*id*".csv",size(result,1), sample_size = 9)
 CSV.write(output_dir*"/"*"experiment_sampled"*"_"*id*".csv",df_r)
 
 CUDA.@time bpc = CuBitsProbCircuit(pc);
